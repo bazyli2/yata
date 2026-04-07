@@ -38,3 +38,15 @@ processes:
         condition: process_started
     availability:
       restart: on_failure
+
+  # Watches backend/app/**/*.py and regenerates:
+  #   1. openapi.json                         (via `python -m app.scripts.dump_openapi`)
+  #   2. frontend/src/lib/api-types.ts        (via `openapi-typescript`)
+  # This gives the TypeScript language server real-time updates on
+  # backend schema changes, so IDE red squiggles appear within ~1 s
+  # of saving a Python file.
+  typegen:
+    command: uv run watchfiles --filter python "sh -c 'python -m app.scripts.dump_openapi > ../openapi.json && (cd ../frontend && pnpm exec openapi-typescript ../openapi.json -o src/lib/api-types.ts)'" app
+    working_dir: ./backend
+    availability:
+      restart: on_failure

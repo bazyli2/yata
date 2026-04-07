@@ -3,7 +3,11 @@ import { ItemForm } from "./item-form";
 
 async function loadHealth(): Promise<HealthResponse | { status: string; error: string }> {
   try {
-    return await api.health();
+    const { data, error } = await api.GET("/api/health");
+    if (error || !data) {
+      throw new Error("Failed to load health");
+    }
+    return data;
   } catch (err) {
     return { status: "unreachable", error: err instanceof Error ? err.message : String(err) };
   }
@@ -11,7 +15,8 @@ async function loadHealth(): Promise<HealthResponse | { status: string; error: s
 
 async function loadItems(): Promise<Item[]> {
   try {
-    return await api.listItems();
+    const { data } = await api.GET("/api/items");
+    return data ?? [];
   } catch {
     return [];
   }

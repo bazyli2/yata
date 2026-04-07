@@ -3,3 +3,6 @@ node_modules
 pnpm-lock.yaml
 public
 *.md
+
+# Generated from backend OpenAPI schema.
+src/lib/api-types.ts

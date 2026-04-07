@@ -1,49 +1,39 @@
 /**
- * Tiny fetch wrapper that prepends NEXT_PUBLIC_API_URL.
+ * Typed API client backed by openapi-fetch and the schema generated from
+ * the FastAPI backend (see ./api-types.ts).
  *
- * Set NEXT_PUBLIC_API_URL in frontend/.env.local
- * (defaults to http://localhost:8000 in dev).
+ * Day-to-day you use `api.GET("/api/items", …)`, `api.POST(...)`, etc.
+ * All paths, query/path params, request bodies, and responses are
+ * type-checked against the backend's OpenAPI schema.
+ *
+ * The schema is regenerated automatically by the `typegen` devbox service
+ * whenever any file under `backend/app/**` changes. You can also run
+ * `devbox run gen:types` manually.
  */
+
+import createClient from "openapi-fetch";
+
+import type { components, paths } from "./api-types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-export type Item = {
-  id: number;
-  name: string;
-  description: string | null;
-  created_at: string;
-};
+export const api = createClient<paths>({
+  baseUrl: API_BASE,
+});
 
-export type HealthResponse = {
-  status: string;
-};
+// In Next.js 16 the native fetch is not cached by default inside Server
+// Components, so we don't need to override anything here. If you ever want
+// to force no-store (or add auth headers), add a middleware via `api.use`.
+//
+// Example:
+//   api.use({
+//     onRequest: ({ request }) =>
+//       new Request(request, { cache: "no-store" }),
+//   });
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
-  const res = await fetch(url, {
-    cache: "no-store",
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`API ${url} failed: ${res.status} ${res.statusText}`);
-  }
-  return (await res.json()) as T;
-}
-
-export const api = {
-  health: () => apiFetch<HealthResponse>("/api/health"),
-  listItems: () => apiFetch<Item[]>("/api/items"),
-  createItem: (data: { name: string; description?: string }) =>
-    apiFetch<Item>("/api/items", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  deleteItem: (id: number) =>
-    apiFetch<void>(`/api/items/${id}`, {
-      method: "DELETE",
-    }),
-};
+// Re-export a few handy aliases derived from the generated schema so
+// consumers don't have to keep writing `components["schemas"]["…"]`.
+export type Item = components["schemas"]["ItemRead"];
+export type ItemCreate = components["schemas"]["ItemCreate"];
+export type HealthResponse =
+  paths["/api/health"]["get"]["responses"][200]["content"]["application/json"];

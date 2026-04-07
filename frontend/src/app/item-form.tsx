@@ -19,10 +19,16 @@ export function ItemForm() {
       return;
     }
     try {
-      await api.createItem({
-        name: name.trim(),
-        description: description.trim() || undefined,
+      const { error: apiError } = await api.POST("/api/items", {
+        body: {
+          name: name.trim(),
+          description: description.trim() || null,
+        },
       });
+      if (apiError) {
+        setError("Failed to create item");
+        return;
+      }
       setName("");
       setDescription("");
       startTransition(() => {
