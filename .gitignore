@@ -1,0 +1,32 @@
+# Postgres data
+/pgdata/
+
+# Node
+**/node_modules/
+**/.next/
+**/.turbo/
+**/dist/
+**/build/
+
+# Python
+**/__pycache__/
+**/.venv/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Env files
+frontend/.env.local
+backend/.env
+
+# Devbox / process-compose
+.devbox/
+.process-compose*
+process-compose-*.log
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store

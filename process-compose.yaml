@@ -1,0 +1,40 @@
+version: "0.5"
+
+# Devbox services definition. Started with `devbox services up`.
+# All processes inherit env vars from the surrounding `devbox shell`,
+# so PGDATA, PGHOST, PGPORT, DATABASE_URL, etc. are already in scope.
+
+processes:
+  postgres:
+    command: postgres -D "$PGDATA" -k "$PGHOST" -p "$PGPORT"
+    availability:
+      restart: on_failure
+    readiness_probe:
+      exec:
+        command: pg_isready -h localhost -p "$PGPORT" -U postgres
+      initial_delay_seconds: 1
+      period_seconds: 2
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 10
+    shutdown:
+      signal: 2
+      timeout_seconds: 10
+
+  backend:
+    command: uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    working_dir: ./backend
+    depends_on:
+      postgres:
+        condition: process_healthy
+    availability:
+      restart: on_failure
+
+  frontend:
+    command: pnpm dev --port 3000
+    working_dir: ./frontend
+    depends_on:
+      backend:
+        condition: process_started
+    availability:
+      restart: on_failure
