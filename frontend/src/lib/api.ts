@@ -16,8 +16,12 @@ import createClient from "openapi-fetch";
 import type { components, paths } from "./api-types";
 import { env } from "./env";
 
+// In the browser we use a relative baseUrl so requests hit the Next.js
+// server on the same origin and are proxied to FastAPI via `rewrites()`
+// in `next.config.ts`. On the server (Server Components, route handlers)
+// Node's `fetch` requires an absolute URL, so we use BACKEND_ORIGIN.
 export const api = createClient<paths>({
-  baseUrl: env.NEXT_PUBLIC_API_URL,
+  baseUrl: typeof window === "undefined" ? env.BACKEND_ORIGIN : "",
 });
 
 // In Next.js 16 the native fetch is not cached by default inside Server

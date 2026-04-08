@@ -25,7 +25,11 @@ class Settings(BaseSettings):
     db_password: str = ""
     db_name: str = "app"
 
-    cors_origins: list[str] = ["http://localhost:3000"]
+    # Not load-bearing in dev: the Next.js frontend proxies /api/* to this
+    # backend via `rewrites()`, so browser requests are same-origin and
+    # never trigger CORS. Kept as a safety net for direct cross-origin
+    # access (e.g. hitting :8000 from a different host).
+    cors_origins: list[str] = []
     api_prefix: str = "/api"
 
     @field_validator("api_prefix")

@@ -48,6 +48,11 @@ Then open:
 
 Stop all services with `devbox services stop`.
 
+The frontend proxies `/api/*` to FastAPI via Next.js `rewrites()` (see
+`frontend/next.config.ts`), so the browser only ever talks to
+`http://localhost:3000` — no CORS involved. The destination is controlled
+by the server-only `BACKEND_ORIGIN` env var in `frontend/.env.local`.
+
 ## Common commands
 
 All commands assume you are inside `devbox shell`.
