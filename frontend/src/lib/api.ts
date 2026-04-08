@@ -14,11 +14,10 @@
 import createClient from "openapi-fetch";
 
 import type { components, paths } from "./api-types";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { env } from "./env";
 
 export const api = createClient<paths>({
-  baseUrl: API_BASE,
+  baseUrl: env.NEXT_PUBLIC_API_URL,
 });
 
 // In Next.js 16 the native fetch is not cached by default inside Server

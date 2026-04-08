@@ -20,38 +20,11 @@
     "PGHOST": "$PWD/pgdata",
     "PGPORT": "5432",
     "PGUSER": "postgres",
-    "PGDATABASE": "app",
-    "DATABASE_URL": "postgresql+psycopg://postgres@localhost:5432/app"
+    "PGDATABASE": "app"
   },
   "shell": {
     "init_hook": [
-      "set -e",
-      "if [ ! -f \"$PGDATA/PG_VERSION\" ]; then",
-      "  echo '[devbox] Initializing PostgreSQL data directory at '\"$PGDATA\"",
-      "  mkdir -p \"$PGDATA\"",
-      "  initdb -D \"$PGDATA\" --auth=trust --username=postgres --encoding=UTF8 >/dev/null",
-      "  echo '[devbox] Starting Postgres briefly to create database '\"$PGDATABASE\"",
-      "  pg_ctl -D \"$PGDATA\" -l \"$PGDATA/init.log\" -o \"-k $PGHOST -p $PGPORT\" -w start",
-      "  createdb -h \"$PGHOST\" -p \"$PGPORT\" -U postgres \"$PGDATABASE\"",
-      "  pg_ctl -D \"$PGDATA\" -w stop",
-      "  echo '[devbox] Postgres ready.'",
-      "fi",
-      "if [ ! -f backend/.env ] && [ -f backend/.env.example ]; then",
-      "  cp backend/.env.example backend/.env",
-      "  echo '[devbox] Seeded backend/.env from backend/.env.example'",
-      "fi",
-      "if [ ! -f frontend/.env.local ] && [ -f frontend/.env.local.example ]; then",
-      "  cp frontend/.env.local.example frontend/.env.local",
-      "  echo '[devbox] Seeded frontend/.env.local from frontend/.env.local.example'",
-      "fi",
-      "if [ -f backend/pyproject.toml ] && [ ! -d backend/.venv ]; then",
-      "  echo '[devbox] Installing backend Python dependencies via uv'",
-      "  (cd backend && uv sync)",
-      "fi",
-      "if [ -f frontend/package.json ] && [ ! -d frontend/node_modules ]; then",
-      "  echo '[devbox] Installing frontend dependencies via pnpm'",
-      "  (cd frontend && pnpm install)",
-      "fi"
+      "./scripts/devbox-init.sh"
     ],
     "scripts": {
       "dev": "devbox services up",
