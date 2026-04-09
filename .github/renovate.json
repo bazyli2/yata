@@ -1,0 +1,125 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":prHourlyLimit4",
+    ":prConcurrentLimit10",
+    "schedule:weekly",
+    "group:monorepos",
+    "group:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+
+  "description": [
+    "Renovate config for the yata monorepo.",
+    "Install the Renovate GitHub App to enable this config.",
+    "Source-of-truth tool versions live in devbox.json — Renovate does not manage those.",
+    "The strong CI gate (ci.yml → ci-pass) is what makes automerge of minor/patch safe."
+  ],
+
+  "timezone": "Europe/Warsaw",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "rangeStrategy": "bump",
+  "rebaseWhen": "conflicted",
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Renovate: dependency dashboard",
+
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"],
+    "commitMessageAction": "refresh",
+    "automerge": true,
+    "automergeType": "pr",
+    "platformAutomerge": true
+  },
+
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "automerge": false
+  },
+
+  "packageRules": [
+    {
+      "description": "Group all backend Python deps into one PR per week.",
+      "matchManagers": ["pep621"],
+      "matchFileNames": ["backend/**"],
+      "groupName": "backend python deps",
+      "commitMessagePrefix": "chore(backend):"
+    },
+    {
+      "description": "Group all frontend npm deps into one PR per week.",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["frontend/**"],
+      "groupName": "frontend npm deps",
+      "commitMessagePrefix": "chore(frontend):"
+    },
+    {
+      "description": "Group GitHub Actions updates.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "commitMessagePrefix": "chore(ci):"
+    },
+    {
+      "description": "Automerge safe minor/patch updates once CI passes. The ci-pass aggregator job is required branch protection, so merging requires CI green by construction.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Never auto-merge major framework updates — always want a human to review migration notes.",
+      "matchPackageNames": [
+        "next",
+        "eslint-config-next",
+        "react",
+        "react-dom",
+        "@types/react",
+        "@types/react-dom",
+        "fastapi",
+        "sqlalchemy",
+        "alembic",
+        "pydantic",
+        "pydantic-settings",
+        "uvicorn"
+      ],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "needs-review"]
+    },
+    {
+      "description": "Never auto-merge any major update, even for non-framework deps.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "TypeScript type-only packages: safe to group and automerge across update types.",
+      "matchPackageNames": ["@types/**"],
+      "groupName": "type definitions",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Tailwind/Prettier tooling: group together since they often move in lockstep.",
+      "matchPackageNames": [
+        "tailwindcss",
+        "@tailwindcss/postcss",
+        "prettier",
+        "prettier-plugin-tailwindcss",
+        "eslint-config-prettier"
+      ],
+      "groupName": "frontend formatting + tailwind"
+    }
+  ],
+
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/.next/**",
+    "pgdata/**"
+  ]
+}

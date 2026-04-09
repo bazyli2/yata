@@ -1,0 +1,375 @@
+name: CI
+
+# Quality gates for every PR and every push to main.
+#
+# Tool versions pinned below intentionally mirror devbox.json, which is the
+# source of truth for local development. If you bump a version there, bump it
+# here too.
+#
+# This workflow deliberately does not use Devbox in the runner: native actions
+# (setup-uv, setup-node, pnpm action-setup) are faster to cold-start and just
+# as reproducible, as long as the versions stay in sync with devbox.json.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel stacked runs on the same ref. Saves minutes on rapid-fire pushes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Mirror of devbox.json → packages. Update in both places together.
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10"
+  PYTHON_VERSION: "3.12"
+  POSTGRES_VERSION: "17"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Path filtering: only run backend/frontend-specific jobs when their files
+  # change. types-fresh + pre-commit always run because they cross both sides.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+              - 'openapi.json'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/ci.yml'
+              - 'openapi.json'
+
+  # ---------------------------------------------------------------------------
+  # Backend: ruff lint + format check
+  # ---------------------------------------------------------------------------
+  backend-lint:
+    name: Backend lint (ruff)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+  # ---------------------------------------------------------------------------
+  # Backend: pytest + migration smoke test against a real Postgres
+  #
+  # Tests themselves use SQLite in-memory (see backend/tests/conftest.py), so
+  # Postgres is only needed to validate that `alembic upgrade head` applies
+  # cleanly against a real engine. This catches broken migrations before they
+  # reach staging.
+  # ---------------------------------------------------------------------------
+  backend-test:
+    name: Backend tests + migrations
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Used by the Alembic migration check. Pytest overrides these via the
+      # in-memory SQLite conftest fixture, so these values don't affect tests.
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Apply migrations (smoke test against real Postgres)
+        run: uv run alembic upgrade head
+
+      - name: Run pytest
+        run: uv run pytest
+
+  # ---------------------------------------------------------------------------
+  # Frontend: ESLint + Prettier
+  # ---------------------------------------------------------------------------
+  frontend-lint:
+    name: Frontend lint (eslint + prettier)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: ESLint
+        run: pnpm lint
+
+      - name: Prettier check
+        run: pnpm format:check
+
+  # ---------------------------------------------------------------------------
+  # Frontend: tsc --noEmit
+  # ---------------------------------------------------------------------------
+  frontend-typecheck:
+    name: Frontend typecheck (tsc)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+  # ---------------------------------------------------------------------------
+  # Frontend: production build. Catches errors that `tsc --noEmit` misses
+  # (server component boundary issues, static generation failures, etc.).
+  # ---------------------------------------------------------------------------
+  frontend-build:
+    name: Frontend build (next build)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: frontend/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}-${{ hashFiles('frontend/src/**/*.{js,jsx,ts,tsx}') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        # BACKEND_ORIGIN is normally server-only at runtime (injected by Doppler).
+        # For a build we just need it to be present; the value isn't baked into
+        # client bundles, so a dummy placeholder is safe.
+        env:
+          BACKEND_ORIGIN: http://localhost:8000
+        run: pnpm build
+
+  # ---------------------------------------------------------------------------
+  # Generated-types freshness check.
+  #
+  # openapi.json and frontend/src/lib/api-types.ts are committed to git. This
+  # job regenerates them both and fails if either differs from what's in the
+  # tree. Equivalent to `devbox run check:types`, but without Devbox.
+  #
+  # This always runs — even on backend-only or frontend-only PRs — because
+  # drift between the two sides is exactly what this check exists to catch.
+  # ---------------------------------------------------------------------------
+  types-fresh:
+    name: OpenAPI types are fresh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Regenerate openapi.json
+        working-directory: backend
+        run: uv run python -m app.scripts.dump_openapi > ../openapi.json
+
+      - name: Regenerate api-types.ts
+        working-directory: frontend
+        run: pnpm exec openapi-typescript ../openapi.json -o src/lib/api-types.ts
+
+      - name: Fail if generated files drifted
+        run: |
+          if ! git diff --exit-code -- openapi.json frontend/src/lib/api-types.ts; then
+            echo ""
+            echo "::error::Generated OpenAPI artifacts are out of date."
+            echo "::error::Run 'devbox run gen:types' locally and commit the result."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Pre-commit: runs the same hooks that developers run locally. Single source
+  # of truth for formatting/lint rules lives in .pre-commit-config.yaml.
+  # ---------------------------------------------------------------------------
+  pre-commit:
+    name: pre-commit hooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: pre-commit/action@v3.0.1
+
+  # ---------------------------------------------------------------------------
+  # Aggregator: single required check for branch protection.
+  #
+  # Having one job that `needs:` every other job means branch protection can
+  # require just this one check, and path-filtered skipped jobs don't block
+  # merging (they report as "skipped", which this aggregator treats as pass).
+  # ---------------------------------------------------------------------------
+  ci-pass:
+    name: CI pass
+    if: always()
+    needs:
+      - changes
+      - backend-lint
+      - backend-test
+      - frontend-lint
+      - frontend-typecheck
+      - frontend-build
+      - types-fresh
+      - pre-commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all required jobs succeeded
+        run: |
+          # Fail if any needed job was cancelled or failed. Skipped jobs are OK
+          # (that's how path filtering works), but explicit failures must block.
+          results='${{ toJSON(needs) }}'
+          echo "Job results: $results"
+          echo "$results" | python3 -c '
+          import json, sys
+          results = json.load(sys.stdin)
+          bad = []
+          for name, meta in results.items():
+              result = meta.get("result")
+              if result not in ("success", "skipped"):
+                  bad.append(f"{name}={result}")
+          if bad:
+              print("::error::Required jobs failed: " + ", ".join(bad))
+              sys.exit(1)
+          print("All required jobs passed or were legitimately skipped.")
+          '

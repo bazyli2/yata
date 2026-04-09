@@ -1,0 +1,94 @@
+# Pre-commit hooks shared between local dev and CI.
+#
+# Install locally once per clone:
+#   pip install pre-commit   # or: brew install pre-commit
+#   pre-commit install              # commit-time hooks
+#   pre-commit install --hook-type pre-push   # the slower openapi-types-fresh hook
+#
+# Run against the whole repo on demand:
+#   pre-commit run --all-files
+#
+# The same hooks run in CI via .github/workflows/ci.yml → pre-commit job, so
+# this file is the single source of truth for formatting/lint rules that need
+# to pass both locally and in CI.
+
+default_language_version:
+  python: python3.12
+
+repos:
+  # ---- generic hygiene ---------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(openapi\.json|frontend/src/lib/api-types\.ts)$
+      - id: end-of-file-fixer
+        exclude: ^(openapi\.json|frontend/src/lib/api-types\.ts)$
+      - id: check-yaml
+      - id: check-json
+        # openapi.json is generated and has trailing whitespace variants;
+        # validated separately by the types-fresh job in CI.
+        exclude: ^openapi\.json$
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # ---- backend: ruff lint + format --------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^backend/
+        exclude: ^backend/alembic/versions/
+      - id: ruff-format
+        files: ^backend/
+        exclude: ^backend/alembic/versions/
+
+  # ---- frontend: prettier -----------------------------------------------
+  # ESLint is intentionally NOT a pre-commit hook: it's slow, and it already
+  # runs in CI (frontend-lint job). Keeping pre-commit fast is worth the
+  # slight duplication.
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.8.1
+    hooks:
+      - id: prettier
+        files: ^frontend/
+        # Match frontend/.prettierignore behavior; node_modules and generated
+        # files should never be formatted by the hook.
+        exclude: ^frontend/(node_modules/|\.next/|src/lib/api-types\.ts$)
+        additional_dependencies:
+          - prettier@3.8.1
+          - prettier-plugin-tailwindcss@0.7.2
+
+  # ---- secret scanning --------------------------------------------------
+  # Defense in depth: the repo policy is "no .env files, secrets live in
+  # Doppler", but if anyone ever commits a credential by accident this hook
+  # blocks it at the source.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # ---- generated OpenAPI types freshness (pre-push only) ---------------
+  # Regenerates openapi.json and frontend/src/lib/api-types.ts from the
+  # backend's OpenAPI schema and fails if either drifts. This is the same
+  # check CI enforces via the types-fresh job.
+  #
+  # Runs only on `pre-push` because it boots the FastAPI app and runs
+  # openapi-typescript — too slow for every commit, but fast enough to
+  # catch drift before code leaves your machine.
+  - repo: local
+    hooks:
+      - id: openapi-types-fresh
+        name: openapi types are fresh
+        entry: scripts/check-types.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        # Only trigger when something that could affect the schema changes.
+        files: ^(backend/app/|frontend/src/lib/api-types\.ts$|openapi\.json$)
