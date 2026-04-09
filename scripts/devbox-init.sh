@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Devbox shell init: idempotent setup for Postgres data dir, env files, and deps.
+# Devbox shell init: idempotent setup for Postgres data dir and deps.
 set -euo pipefail
 
 ensure_postgres() {
@@ -14,14 +14,6 @@ ensure_postgres() {
   createdb -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" "$PGDATABASE"
   pg_ctl -D "$PGDATA" -w stop
   echo "[devbox] Postgres ready."
-}
-
-seed_env_file() {
-  local target="$1" example="$2"
-  if [ ! -f "$target" ] && [ -f "$example" ]; then
-    cp "$example" "$target"
-    echo "[devbox] Seeded $target from $example"
-  fi
 }
 
 install_backend() {
@@ -39,7 +31,5 @@ install_frontend() {
 }
 
 ensure_postgres
-seed_env_file backend/.env backend/.env.example
-seed_env_file frontend/.env.local frontend/.env.local.example
 install_backend
 install_frontend

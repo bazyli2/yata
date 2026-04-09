@@ -13,7 +13,9 @@ from app.database import Base
 # access to the values within the .ini file in use.
 config = context.config
 
-# Override sqlalchemy.url from our pydantic settings (which read from .env).
+# Override sqlalchemy.url from our pydantic settings. In dev the DB_*
+# variables are injected by Doppler (`doppler run -- alembic ...`); see
+# `.doppler.yaml` and `backend/app/config.py`.
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging.

@@ -1,0 +1,25 @@
+# Doppler scope configuration for the yata monorepo.
+#
+# This file tells the Doppler CLI which project/config to use depending on
+# the current working directory. When `doppler run` is invoked inside
+# `backend/` or `frontend/`, it resolves the matching scope below and
+# injects that config's secrets as environment variables.
+#
+# Safe to commit: this file contains no secrets, only pointers.
+#
+# First-time contributor setup:
+#   1. doppler login           # one-time browser auth per machine
+#   2. doppler setup           # reads this file; confirm project=yata, config=dev
+#
+# Switching environments (e.g. to a staging config):
+#   doppler configure set config stg --scope ./backend
+#   doppler configure set config stg --scope ./frontend
+# or simply edit the entries below.
+
+setup:
+  - project: yata
+    config: dev
+    path: ./backend
+  - project: yata
+    config: dev
+    path: ./frontend

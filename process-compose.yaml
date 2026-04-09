@@ -1,8 +1,15 @@
 version: "0.5"
 
 # Devbox services definition. Started with `devbox services up`.
-# All processes inherit env vars from the surrounding `devbox shell`,
-# so PGDATA, PGHOST, PGPORT, DATABASE_URL, etc. are already in scope.
+#
+# Postgres and the `typegen` watcher inherit env vars from the surrounding
+# `devbox shell` (PGDATA, PGHOST, PGPORT, etc.).
+#
+# The `backend` and `frontend` processes get their application secrets
+# (DB_*, CORS_ORIGINS, BACKEND_ORIGIN, ...) from Doppler via `doppler run`,
+# using the per-directory scopes defined in `.doppler.yaml` at the repo
+# root. Contributors must run `doppler login` and `doppler setup` once
+# before `devbox services up` will succeed.
 
 processes:
   postgres:
@@ -22,7 +29,9 @@ processes:
       timeout_seconds: 10
 
   backend:
-    command: uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    # Secrets (DB_*, CORS_ORIGINS, ...) are injected by `doppler run`, which
+    # reads the project/config pinned for ./backend in ../.doppler.yaml.
+    command: doppler run -- uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
     working_dir: ./backend
     depends_on:
       postgres:
@@ -31,7 +40,9 @@ processes:
       restart: on_failure
 
   frontend:
-    command: pnpm dev --port 3000
+    # BACKEND_ORIGIN (and any future frontend secrets) come from Doppler
+    # via the scope pinned for ./frontend in ../.doppler.yaml.
+    command: doppler run -- pnpm dev --port 3000
     working_dir: ./frontend
     depends_on:
       backend:

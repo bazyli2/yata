@@ -8,6 +8,8 @@ No Docker required. Postgres, the API, and the web app all run as Devbox service
 - **Frontend**: Next.js 16 (App Router, TypeScript, Tailwind, ESLint, Prettier), pnpm
 - **Backend**: FastAPI, SQLAlchemy 2.0, Alembic, Pydantic Settings, managed by `uv`
 - **Database**: PostgreSQL 17 (data dir at `./pgdata`)
+- **Secrets**: [Doppler](https://www.doppler.com/) — injected at runtime via `doppler run`,
+  no `.env` files on disk
 - **Process orchestration**: `devbox services` (process-compose under the hood)
 - **End-to-end types**: FastAPI OpenAPI → `openapi-typescript` → `openapi-fetch`,
   regenerated automatically by the `typegen` devbox service on every backend save
@@ -25,18 +27,28 @@ yata/
 
 ## Quickstart
 
-You only need [Devbox installed](https://www.jetify.com/devbox/docs/installing_devbox/).
+You need [Devbox installed](https://www.jetify.com/devbox/docs/installing_devbox/)
+and access to the `yata` project in [Doppler](https://www.doppler.com/).
 
 ```sh
 # 1. Enter the dev shell. First run downloads everything,
 #    initializes Postgres, runs `uv sync` and `pnpm install`.
+#    The init hook will refuse to proceed if Doppler isn't set up yet —
+#    see step 2.
 devbox shell
 
-# 2. Start postgres + backend + frontend together.
+# 2. One-time Doppler setup per machine. Re-enter `devbox shell` after
+#    this the first time around so the init hook's preflight passes.
+doppler login      # opens a browser, authenticates this machine
+doppler setup      # reads .doppler.yaml, pins project=yata config=dev
+                   # for both ./backend and ./frontend
+
+# 3. Start postgres + backend + frontend together.
+#    Secrets are injected into backend/frontend via `doppler run`.
 #    -b runs them in the background; omit it to use the TUI.
 devbox services up -b
 
-# 3. Apply database migrations (postgres must be running).
+# 4. Apply database migrations (postgres must be running).
 devbox run migrate
 ```
 
@@ -51,7 +63,7 @@ Stop all services with `devbox services stop`.
 The frontend proxies `/api/*` to FastAPI via Next.js `rewrites()` (see
 `frontend/next.config.ts`), so the browser only ever talks to
 `http://localhost:3000` — no CORS involved. The destination is controlled
-by the server-only `BACKEND_ORIGIN` env var in `frontend/.env.local`.
+by the server-only `BACKEND_ORIGIN` env var, which comes from Doppler.
 
 ## Common commands
 
@@ -78,14 +90,87 @@ All commands assume you are inside `devbox shell`.
 | `devbox run gen:types:watch`       | Run the type generator watcher standalone |
 | `devbox run check:types`           | CI-friendly: regen + fail if anything drifted |
 
-## Environment files
+## Secrets (Doppler)
 
-The init hook seeds these on first `devbox shell`:
+All backend and frontend secrets are managed by [Doppler](https://www.doppler.com/).
+There are **no `.env` files** in this repo — running `doppler run -- <cmd>`
+injects the current config's secrets as environment variables, and
+`pydantic-settings` / Next.js pick them up the same way they would from
+a `.env` file.
 
-- `backend/.env`        ← copied from `backend/.env.example`
-- `frontend/.env.local` ← copied from `frontend/.env.local.example`
+The `doppler` CLI is installed automatically by Devbox (it's in
+`devbox.json → packages`), so you only need to install and configure it
+per machine, not per clone.
 
-Edit them as needed.
+### Layout
+
+- **Project**: `yata`
+- **Configs**: `dev` (local), and whatever you add for staging/prod
+- **Scoping**: [`.doppler.yaml`](./.doppler.yaml) at the repo root pins
+  project + config per subdirectory so `doppler run` inside `backend/`
+  resolves backend secrets and inside `frontend/` resolves frontend
+  secrets — from the same config, without variable-name collisions.
+
+### Variables currently expected
+
+| Scope     | Variable         | Used by                                   |
+| --------- | ---------------- | ----------------------------------------- |
+| backend   | `DB_HOST`        | `app.config.Settings.db_host`             |
+| backend   | `DB_PORT`        | `app.config.Settings.db_port`             |
+| backend   | `DB_USER`        | `app.config.Settings.db_user`             |
+| backend   | `DB_PASSWORD`    | `app.config.Settings.db_password`         |
+| backend   | `DB_NAME`        | `app.config.Settings.db_name`             |
+| backend   | `CORS_ORIGINS`   | `app.config.Settings.cors_origins`        |
+| frontend  | `BACKEND_ORIGIN` | `frontend/src/lib/env.ts` (server-only)   |
+
+If you add a new env var, add it to the Doppler `dev` config and
+document it here.
+
+### First-time setup
+
+```sh
+doppler login      # one-time browser auth per machine
+doppler setup      # reads .doppler.yaml, confirms project/config per scope
+```
+
+Sanity-check the scopes:
+
+```sh
+(cd backend  && doppler secrets)
+(cd frontend && doppler secrets)
+```
+
+### Running things outside devbox scripts
+
+Every `devbox run ...` script and every `process-compose.yaml` process
+that needs secrets already wraps the real command in `doppler run`, so
+`devbox services up`, `devbox run be`, `devbox run fe`, `devbox run test`,
+and `devbox run migrate` all work transparently.
+
+If you invoke `uv run ...` or `pnpm ...` directly (outside devbox
+scripts), prefix it with `doppler run --`:
+
+```sh
+cd backend  && doppler run -- uv run pytest
+cd frontend && doppler run -- pnpm dev
+```
+
+### Switching environments
+
+Either edit `.doppler.yaml` and commit, or override locally:
+
+```sh
+doppler configure set config stg --scope ./backend
+doppler configure set config stg --scope ./frontend
+```
+
+### Adding or rotating secrets
+
+Do it in the Doppler dashboard (or `doppler secrets set FOO=bar`). No
+code or redeploy required for local dev — next invocation of
+`doppler run` picks up the new value. Running services don't auto-reload
+on secret changes; restart them with `devbox services restart backend`
+or similar.
 
 ## End-to-end types
 
@@ -162,7 +247,8 @@ whole stack), use `devbox run db:start` and `devbox run db:stop`.
 - The backend service does **not** auto-run migrations. Run `devbox run migrate`
   manually after creating new revisions.
 - Port 5432 must be free. If you already run a system Postgres, stop it or
-  change `PGPORT` and `DATABASE_URL` in `devbox.json`.
+  change `PGPORT` in `devbox.json` and the corresponding `DB_PORT` in your
+  Doppler `dev` config.
 - The built-in devbox `postgresql` and `python` plugins are disabled in
   `devbox.json` so we can manage the data dir (`./pgdata`) and the Python venv
   (`backend/.venv` via `uv`) ourselves.

@@ -5,7 +5,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application settings, loaded from environment / backend/.env.
+    """Application settings, loaded from process environment variables.
+
+    Secrets are injected at runtime by Doppler (`doppler run -- ...`),
+    so there is no `.env` file loader here. Running the backend outside
+    `doppler run` will fall back to the field defaults below, which is
+    only useful for unit tests (SQLite in-memory, no real DB needed).
 
     The backend uses its own DB_* variables (TCP connection to localhost
     by default) rather than the libpq PG* vars, because in devbox PGHOST
@@ -13,8 +18,6 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
     )

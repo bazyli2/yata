@@ -30,7 +30,11 @@ if (!parsed.success) {
     .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
     .join("\n");
   throw new Error(
-    `Invalid environment variables (see frontend/.env.local.example):\n${issues}`,
+    `Invalid environment variables. Secrets are managed by Doppler — ` +
+      `make sure you ran \`doppler login\` and \`doppler setup\`, and that ` +
+      `the frontend is started via \`doppler run -- pnpm dev\` (or via ` +
+      `\`devbox services up\` / \`devbox run fe\`, which wrap doppler run ` +
+      `for you):\n${issues}`,
   );
 }
 

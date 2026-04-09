@@ -10,6 +10,7 @@
     "uv": "latest",
     "ruff": "latest",
     "process-compose": "latest",
+    "doppler": "latest",
     "postgresql": {
       "version": "17",
       "disable_plugin": true
@@ -28,11 +29,11 @@
     ],
     "scripts": {
       "dev": "devbox services up",
-      "fe": "cd frontend && pnpm dev",
-      "be": "cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
-      "test": "cd backend && uv run pytest",
-      "migrate": "cd backend && uv run alembic upgrade head",
-      "makemigration": "cd backend && uv run alembic revision --autogenerate -m \"${1:-change}\"",
+      "fe": "cd frontend && doppler run -- pnpm dev",
+      "be": "cd backend && doppler run -- uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+      "test": "cd backend && doppler run -- uv run pytest",
+      "migrate": "cd backend && doppler run -- uv run alembic upgrade head",
+      "makemigration": "cd backend && doppler run -- uv run alembic revision --autogenerate -m \"${1:-change}\"",
       "db:psql": "psql -h \"$PGHOST\" -p \"$PGPORT\" -U postgres -d \"$PGDATABASE\"",
       "db:start": "devbox services up postgres -b",
       "db:stop": "devbox services stop postgres",

@@ -17,9 +17,15 @@
 .pytest_cache/
 .ruff_cache/
 
-# Env files
+# Env files — secrets come from Doppler, but keep these ignored as a
+# defense-in-depth safety net in case anything ever writes one locally.
 frontend/.env.local
 backend/.env
+
+# Doppler CLI local state (configured scopes, cached tokens, etc.).
+# `.doppler.yaml` at the repo root IS committed — it contains only project
+# and config pointers, no secrets.
+.doppler/
 
 # Devbox / process-compose
 .devbox/
