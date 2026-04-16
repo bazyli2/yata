@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     db_user: str = "postgres"
     db_password: str = ""
     db_name: str = "app"
+    # Appended as `?sslmode=...` to the connection URL when set. Prod
+    # (Neon) sets this to "require"; local devbox Postgres leaves it
+    # unset so the URL stays plaintext-friendly. Explicit DB_SSLMODE
+    # instead of PGSSLMODE because in devbox the libpq PG* vars target
+    # the unix socket used by psql/initdb — see the class docstring.
+    db_sslmode: str | None = None
 
     # Not load-bearing in dev: the Next.js frontend proxies /api/* to this
     # backend via `rewrites()`, so browser requests are same-origin and
@@ -45,7 +51,10 @@ class Settings(BaseSettings):
     @cached_property
     def database_url(self) -> str:
         auth = self.db_user if not self.db_password else f"{self.db_user}:{self.db_password}"
-        return f"postgresql+psycopg://{auth}@{self.db_host}:{self.db_port}/{self.db_name}"
+        url = f"postgresql+psycopg://{auth}@{self.db_host}:{self.db_port}/{self.db_name}"
+        if self.db_sslmode:
+            url += f"?sslmode={self.db_sslmode}"
+        return url
 
 
 settings = Settings()

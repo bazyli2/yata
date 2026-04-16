@@ -240,6 +240,36 @@ devbox run migrate
 If you only need the database (e.g. to run migrations without starting the
 whole stack), use `devbox run db:start` and `devbox run db:stop`.
 
+## Deployment
+
+Production is a Terraform-managed stack:
+
+- **Neon** — managed Postgres (replaces `./pgdata` in prod)
+- **Fly.io** — FastAPI container, region `ams`
+- **Vercel** — Next.js frontend, linked to GitHub, production branch `main`
+- **Doppler** — `prd` config holds runtime secrets; Terraform writes
+  derived Neon connection values in, Fly reads them via `doppler run`
+  in the container CMD, and Vercel reads them via the native Doppler
+  sync integration
+
+Runbook and architecture detail live in [`terraform/README.md`](./terraform/README.md).
+
+```
+terraform apply (Terraform Cloud, VCS-driven)
+    ├─ Neon:    project, branch (main), db, role, random password
+    ├─ Fly:     app, v4+v6 IPs, machine (placeholder image), DOPPLER_TOKEN
+    ├─ Vercel:  project linked to GitHub, production branch = main
+    └─ Doppler: prd config + secrets, Fly service token, Vercel sync
+```
+
+Day-to-day deploys are fully automated from `main`:
+
+| Changes under  | Deploy path                                                    |
+| -------------- | -------------------------------------------------------------- |
+| `terraform/**` | Terraform Cloud VCS run (plan on PR, auto-apply on merge)      |
+| `backend/**`   | `.github/workflows/deploy-backend.yml` → alembic + `flyctl deploy` |
+| `frontend/**`  | Vercel Git integration → `next build` + deploy                 |
+
 ## Notes
 
 - Postgres data lives in `./pgdata` (gitignored). To start completely fresh,

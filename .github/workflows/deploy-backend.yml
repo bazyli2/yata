@@ -1,0 +1,88 @@
+name: Deploy backend
+
+# Production deploy for the FastAPI backend.
+#
+# Runs on every push to main that touches backend/** (or this workflow
+# itself). Two sequential steps:
+#
+#   1. alembic upgrade head  — against Neon, via doppler run + the prd
+#                              config. Fails fast before we push an image
+#                              that would talk to a schema-stale DB.
+#   2. flyctl deploy         — builds the backend Dockerfile remotely and
+#                              rolls the new image into the Fly machine.
+#
+# We deliberately do NOT run migrations as a Fly `release_command` (leaves
+# half-deployed state on failure) or as a Terraform `null_resource`
+# (couples schema changes to infra applies).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+
+# Only one deploy in flight at a time; do not cancel an in-progress deploy
+# because that can leave Fly half-rolled. Queue instead.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+# Version pins mirror .github/workflows/ci.yml. Keep in sync.
+env:
+  PYTHON_VERSION: "3.12"
+  FLY_APP_NAME: yata-backend-prd
+
+jobs:
+  migrate:
+    name: Apply migrations (alembic → Neon)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Alembic upgrade head
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_CI_DEPLOY }}
+        run: doppler run -- uv run alembic upgrade head
+
+  deploy:
+    name: Deploy to Fly.io
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: flyctl deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        # No fly.toml in the repo — everything Fly needs is inline or on
+        # the app resource (managed by Terraform). --remote-only builds
+        # on Fly's builder instead of in the runner.
+        run: >
+          flyctl deploy
+          --remote-only
+          --app ${{ env.FLY_APP_NAME }}
+          --dockerfile backend/Dockerfile
+          ./backend
