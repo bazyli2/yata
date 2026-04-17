@@ -29,6 +29,29 @@ resource "doppler_config" "prd" {
   name        = "prd"
 }
 
+# ----- Terraform environment + config + secrets data source ----------------
+#
+# Infrastructure-only tokens (provider API keys) live in the `terraform`
+# config, separate from runtime secrets in `prd`. This keeps Doppler as
+# the single source of truth for all secrets.
+
+resource "doppler_environment" "terraform" {
+  project = "yata"
+  slug    = "terraform"
+  name    = "Terraform"
+}
+
+resource "doppler_config" "terraform" {
+  project     = "yata"
+  environment = doppler_environment.terraform.slug
+  name        = "terraform"
+}
+
+data "doppler_secrets" "terraform" {
+  project = "yata"
+  config  = doppler_config.terraform.name
+}
+
 # ----- Secrets ------------------------------------------------------------
 
 # Variable names mirror the `dev` config (documented in README.md under
