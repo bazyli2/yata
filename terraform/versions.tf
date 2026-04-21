@@ -12,10 +12,10 @@ terraform {
   required_version = ">= 1.9.0"
 
   cloud {
-    organization = "yata"
+    organization = "bazyli2"
 
     workspaces {
-      name = "yata-prod"
+      name = "yata"
     }
   }
 
@@ -27,7 +27,7 @@ terraform {
 
     vercel = {
       source  = "vercel/vercel"
-      version = "~> 3.0"
+      version = "~> 0.3"
     }
 
     fly = {
