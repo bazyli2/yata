@@ -2,11 +2,14 @@
 
 This directory defines the production stack for yata:
 
-- **Neon** — managed Postgres (project, main branch, `app` database + role)
-- **Fly.io** — FastAPI container (app + machine + IPs + Doppler token secret)
+- **Neon** — managed Postgres (project, main branch, autoscaling
+  read/write endpoint, `app` database + role)
+- **Fly.io** — FastAPI container (app + machine + IPs); secrets are
+  written by Doppler's native Fly sync, not by Terraform
 - **Vercel** — Next.js frontend (project linked to GitHub, production = `main`)
 - **Doppler** — `prd` config holding all runtime secrets, synced to Fly
-  (via service token) and Vercel (via native integration)
+  via `doppler_secrets_sync_flyio` and to Vercel via the dashboard
+  integration (the Doppler Terraform provider has no Vercel resource)
 
 State lives in [Terraform Cloud](https://app.terraform.io/) under
 `yata/yata-prod`. VCS integration runs `plan` on PRs that touch
@@ -20,10 +23,10 @@ terraform/
 ├── providers.tf    # provider configs (tokens from TFC env vars)
 ├── variables.tf    # github_repo, fly_app_name, regions, custom_domain…
 ├── locals.tf       # derived names, CORS origins
-├── neon.tf         # project, branch, database, role, random password
-├── fly.tf          # app, v4+v6 IPs, machine (placeholder image), secret
+├── neon.tf         # project, branch, endpoint, database, role, password
+├── fly.tf          # app, v4+v6 IPs, machine (placeholder image)
 ├── vercel.tf       # project linked to GitHub, optional custom domain
-├── doppler.tf      # prd config, secrets, Fly service token, Vercel sync
+├── doppler.tf      # prd config, secrets, Fly integration + sync
 └── outputs.tf      # non-sensitive URLs/IDs
 ```
 
@@ -54,11 +57,14 @@ terraform/
 
 4. **Queue the first run in the TFC UI.** Review the plan, confirm apply.
    This creates everything end-to-end: Neon project, Fly app (placeholder
-   image), Vercel project, Doppler `prd` config + secrets + integrations.
+   image), Vercel project, Doppler `prd` config + secrets, and the
+   Doppler→Fly sync. The Doppler→Vercel integration is configured once
+   in the Doppler dashboard (the Doppler Terraform provider doesn't ship
+   a Vercel integration resource).
 
 5. **Mint CI deploy tokens and add to GitHub Actions secrets.**
    - `DOPPLER_TOKEN_CI_DEPLOY` — a Doppler service token scoped to
-     `yata/prd` (or reuse `doppler_service_token.fly.key` from TF outputs)
+     `yata/prd`, minted in the Doppler dashboard.
    - `FLY_API_TOKEN` — `flyctl tokens create deploy -a yata-backend-prd`
 
 6. **Trigger the first real backend deploy.** Push any change under
@@ -104,15 +110,17 @@ This generates a new password, updates the Neon role, overwrites the
 Fly containers pick it up on their next restart; trigger one with
 `flyctl machine restart -a yata-backend-prd`.
 
-### Rotate the Fly service token
+### Rotate the Doppler→Fly integration credentials
 
-```sh
-terraform apply -replace=doppler_service_token.fly
-```
+The Doppler→Fly sync uses the `FLY_API_TOKEN` stored in the Doppler
+`yata/terraform` config. To rotate:
 
-Terraform mints a new Doppler service token, overwrites the
-`DOPPLER_TOKEN` Fly secret, and the machine restarts automatically when
-Fly detects the secret change.
+1. `flyctl tokens create deploy -a yata-backend-prd` to mint a new token.
+2. Update `FLY_API_TOKEN` in the `yata/terraform` Doppler config.
+3. `terraform apply -replace=doppler_integration_flyio.prd` to re-create
+   the integration with the new key. The dependent
+   `doppler_secrets_sync_flyio.prd` will be recreated alongside it and
+   `restart_machines = true` rolls the running machines.
 
 ### Rotate a provider API token
 

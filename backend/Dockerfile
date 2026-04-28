@@ -13,8 +13,13 @@ WORKDIR /app
 
 # Install the Doppler CLI from Doppler's apt repo so the container can
 # `doppler run -- ...` at startup and pull DB_* / CORS_ORIGINS / etc.
-# from the `prd` config. DOPPLER_TOKEN is supplied as a Fly secret (see
-# terraform/fly.tf → fly_secret.doppler_token).
+# from the `prd` config.
+#
+# NOTE: production secrets now arrive as plain Fly env vars via the
+# `doppler_secrets_sync_flyio.prd` push (see terraform/doppler.tf), so
+# `doppler run` is no longer required at startup in prod. It's still
+# useful for local/dev runs that pass DOPPLER_TOKEN explicitly. A
+# follow-up should switch the prod CMD to invoke fastapi directly.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl gnupg \
     && curl -sSfL https://packages.doppler.com/public/cli/gpg.DE2A7741A397C129.key \

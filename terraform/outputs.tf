@@ -18,7 +18,7 @@ output "vercel_project_id" {
 }
 
 output "vercel_url" {
-  description = "Vercel production URL (empty until the first deploy)."
+  description = "Vercel production URL, derived from the project name (`<project>.vercel.app`)."
   value       = local.vercel_prod_url
 }
 
@@ -28,8 +28,8 @@ output "neon_project_id" {
 }
 
 output "neon_host" {
-  description = "Neon Postgres host for the main branch."
-  value       = neon_branch.main.endpoint
+  description = "Neon Postgres host for the main branch's read/write endpoint."
+  value       = neon_endpoint.main.host
 }
 
 output "doppler_prd_config" {

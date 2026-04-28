@@ -7,6 +7,12 @@
 # load-bearing: without it, every `terraform apply` would revert the
 # machine back to the placeholder image and break prod.
 #
+# Secrets reach the app via Doppler's native Fly.io sync (see
+# `doppler_secrets_sync_flyio.prd` in doppler.tf). The fly-apps/fly
+# provider has no `fly_secret` resource, and DOPPLER_TOKEN bootstrapping
+# is unnecessary now that Doppler writes secrets directly into Fly as
+# regular env vars.
+#
 # Why a new app rather than importing `yata-g9hica`:
 # the existing app was created interactively by `flyctl launch`, carries
 # a random suffix, and shouldn't be in Terraform without an `import`
@@ -27,14 +33,6 @@ resource "fly_ip" "v4" {
 resource "fly_ip" "v6" {
   app  = fly_app.backend.name
   type = "v6"
-}
-
-# DOPPLER_TOKEN is the only Fly secret. Everything else (DB_*, CORS_*,
-# BACKEND_ORIGIN) is pulled at container start by `doppler run`.
-resource "fly_secret" "doppler_token" {
-  app   = fly_app.backend.name
-  name  = "DOPPLER_TOKEN"
-  value = doppler_service_token.fly.key
 }
 
 resource "fly_machine" "backend" {
@@ -70,16 +68,16 @@ resource "fly_machine" "backend" {
   depends_on = [
     fly_ip.v4,
     fly_ip.v6,
-    fly_secret.doppler_token,
   ]
 
   lifecycle {
     ignore_changes = [
       # Updated by `flyctl deploy` in CI on every backend change.
       image,
-      # Fly may inject deploy-time env vars; `doppler run` in the CMD
-      # supplies the app-level config, so Terraform should stay out of
-      # runtime env drift.
+      # Doppler's Fly sync writes runtime env (DB_*, CORS_ORIGINS,
+      # BACKEND_ORIGIN) directly onto the app, and Fly may inject
+      # deploy-time vars on top. Terraform should stay out of runtime
+      # env drift.
       env,
     ]
   }

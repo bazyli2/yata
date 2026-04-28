@@ -1,4 +1,4 @@
-# Doppler: prod config, secrets, and integrations.
+# Doppler: prod config, secrets, and the Fly.io sync.
 #
 # Doppler is the single source of truth for runtime secrets. The Doppler
 # project `yata` already exists (created out-of-band during initial
@@ -9,11 +9,16 @@
 #
 #   Neon ───► doppler_secret.* (prd config)
 #                   │
-#                   ├─► Fly via `DOPPLER_TOKEN` (doppler_service_token.fly)
-#                   │   read at container start by `doppler run -- fastapi run`
+#                   ├─► Fly via doppler_integration_flyio + sync
+#                   │   (Doppler writes DB_* / CORS_ORIGINS / BACKEND_ORIGIN
+#                   │    directly into the Fly app as env vars and
+#                   │    restarts the machines)
 #                   │
-#                   └─► Vercel Production env via doppler_secrets_sync
-#                       (available at build + runtime)
+#                   └─► Vercel Production env via the Doppler↔Vercel
+#                       integration configured in the Doppler dashboard
+#                       (the Doppler Terraform provider does not expose
+#                       a Vercel integration resource, so this lives
+#                       outside Terraform — one-time UI setup per env)
 
 # ----- Environment + config -----------------------------------------------
 
@@ -62,7 +67,7 @@ resource "doppler_secret" "db_host" {
   project = "yata"
   config  = doppler_config.prd.name
   name    = "DB_HOST"
-  value   = neon_branch.main.endpoint
+  value   = neon_endpoint.main.host
 }
 
 resource "doppler_secret" "db_port" {
@@ -103,10 +108,11 @@ resource "doppler_secret" "db_sslmode" {
   value   = "require"
 }
 
-# JSON array. On first apply `local.cors_origins` may be empty because
-# Vercel hasn't deployed yet; that's fine — the frontend proxies /api/*
-# server-side so the browser never triggers CORS. A follow-up apply
-# after Vercel has a URL fills this in.
+# JSON array. CORS_ORIGINS is fully resolved at plan time now that
+# `local.vercel_prod_url` derives from the Vercel project name — no more
+# empty-on-first-apply caveat. The frontend still proxies /api/*
+# server-side so the browser never triggers CORS in the happy path; this
+# list is the safety net for direct hits and staging.
 resource "doppler_secret" "cors_origins" {
   project = "yata"
   config  = doppler_config.prd.name
@@ -122,42 +128,40 @@ resource "doppler_secret" "backend_origin" {
   value   = local.backend_origin
 }
 
-# ----- Service token for Fly ---------------------------------------------
+# ----- Fly.io sync --------------------------------------------------------
 
-# Read-only token scoped to yata/prd. Fed into `fly_secret.doppler_token`
-# (see fly.tf). The container's CMD uses this to `doppler run --` and
-# inject DB_* / CORS_ORIGINS at process start.
-resource "doppler_service_token" "fly" {
-  project = "yata"
-  config  = doppler_config.prd.name
-  name    = "fly-backend"
-  access  = "read"
+# Doppler's first-party Fly.io integration. Pushes the prd config into
+# the Fly app as plain env vars and restarts machines on change, so the
+# backend container no longer needs to wrap itself in `doppler run --`.
+# The Fly API token comes from the same `terraform` Doppler config that
+# feeds the Fly Terraform provider above.
+resource "doppler_integration_flyio" "prd" {
+  name    = "fly-prd"
+  api_key = data.doppler_secrets.terraform.map.FLY_API_TOKEN
 }
 
-# ----- Vercel sync integration -------------------------------------------
-
-# One-way push: Doppler (prd) → Vercel (Production environment).
-# Overwrites anything set directly in the Vercel dashboard — keeps
-# Doppler as the sole source of truth per the design notes.
-resource "doppler_integration" "vercel" {
-  name = "vercel-prd"
-  type = "vercel"
-}
-
-resource "doppler_secrets_sync" "vercel_prd" {
+resource "doppler_secrets_sync_flyio" "prd" {
+  integration = doppler_integration_flyio.prd.id
   project     = "yata"
   config      = doppler_config.prd.name
-  integration = doppler_integration.vercel.id
 
-  data = {
-    project     = vercel_project.frontend.id
-    environment = "production"
-  }
+  app_id           = fly_app.backend.name
+  restart_machines = true
 
-  # Vercel project must exist before the sync can target it.
+  # Leave secrets in place if this sync is destroyed. Otherwise a routine
+  # `terraform destroy` (or recreate) would wipe DB_* off Fly and brick
+  # the app between plans.
+  delete_behavior = "leave_in_target"
+
   depends_on = [
-    vercel_project.frontend,
-    doppler_secret.backend_origin,
+    fly_app.backend,
+    doppler_secret.db_host,
+    doppler_secret.db_port,
+    doppler_secret.db_user,
+    doppler_secret.db_password,
+    doppler_secret.db_name,
+    doppler_secret.db_sslmode,
     doppler_secret.cors_origins,
+    doppler_secret.backend_origin,
   ]
 }

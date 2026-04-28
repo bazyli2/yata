@@ -4,11 +4,12 @@ locals {
   # Canonical backend URL. Fly auto-assigns `<app>.fly.dev` on app create.
   backend_origin = "https://${fly_app.backend.name}.fly.dev"
 
-  # Canonical frontend URL. Vercel exposes `.url` on the project resource
-  # only after the first deployment, so on a fresh apply this may be an
-  # empty string — CORS_ORIGINS tolerates that (see the doppler_secret
-  # definition). Once Vercel has deployed once, re-applying fills it in.
-  vercel_prod_url = try("https://${vercel_project.frontend.url}", "")
+  # Canonical frontend URL. Vercel's stable production alias is
+  # `<project-name>.vercel.app`, so deriving from the configured project
+  # name keeps this known at plan time and avoids the chicken-and-egg of
+  # the (non-existent) `vercel_project.url` attribute. Custom domains
+  # land in `cors_origins` below alongside this.
+  vercel_prod_url = "https://${vercel_project.frontend.name}.vercel.app"
 
   # CORS allowlist for the FastAPI app. The frontend proxies `/api/*`
   # server-side via Next.js rewrites, so the browser never actually hits

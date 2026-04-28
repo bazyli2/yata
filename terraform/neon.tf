@@ -1,10 +1,16 @@
 # Managed Postgres for prod.
 #
-# One Neon project, one branch (main), one database, one role. The
-# `random_password` lets Terraform own the credential lifecycle: rotating
-# the DB password is `terraform apply -replace=random_password.db`, which
-# re-fans the new value out to Doppler (and therefore to Fly via
-# `doppler run` and to Vercel via the sync integration).
+# One Neon project, one branch (main), one read/write endpoint, one
+# database, one role. The `random_password` lets Terraform own the
+# credential lifecycle: rotating the DB password is
+# `terraform apply -replace=random_password.db`, which re-fans the new
+# value out to Doppler (and therefore to Fly via the Doppler→Fly sync
+# and to Vercel via the Doppler dashboard integration).
+#
+# The kislerdm/neon provider splits compute settings out of `neon_branch`
+# and onto `neon_endpoint`: autoscale limits, the suspend timeout, and
+# the provisioner choice all live there. The branch resource itself only
+# knows about identity (project, name, parentage, protection).
 
 resource "random_password" "db" {
   length = 32
@@ -22,16 +28,24 @@ resource "neon_project" "yata" {
 }
 
 # Neon creates a "main" branch automatically when the project is created.
-# We manage it explicitly so we can set autoscale/suspend. If this ever
-# fights the provider (it has in the past), flip to a `data "neon_branch"`
-# lookup and drop the configuration drift.
+# We manage it explicitly so the role/database resources below have a
+# stable handle. If this ever fights the provider (it has in the past),
+# flip to a `data "neon_branch"` lookup and drop the configuration drift.
 resource "neon_branch" "main" {
   project_id = neon_project.yata.id
   name       = "main"
+}
 
-  # Scale-to-zero after 5 minutes idle. 0.25–1 CU matches the workload:
-  # low steady-state traffic, occasional bursts during deploys.
-  compute_provisioner      = "k8s-pod"
+# Read/write compute endpoint for the main branch. Compute settings live
+# here, not on the branch. Scale-to-zero after 5 minutes idle; 0.25–1 CU
+# matches the workload (low steady-state, occasional bursts on deploy).
+# `k8s-neonvm` is the autoscaling-capable provisioner — required for the
+# autoscaling_limit_* fields to take effect.
+resource "neon_endpoint" "main" {
+  project_id               = neon_project.yata.id
+  branch_id                = neon_branch.main.id
+  type                     = "read_write"
+  compute_provisioner      = "k8s-neonvm"
   autoscaling_limit_min_cu = 0.25
   autoscaling_limit_max_cu = 1
   suspend_timeout_seconds  = 300
