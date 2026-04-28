@@ -100,15 +100,18 @@ terraform/
 
 ### Rotate the database password
 
-```sh
-# In TFC or locally with the matching env vars:
-terraform apply -replace=random_password.db
-```
+Neon owns the password for `neon_role.app` — `password` on `neon_role`
+is a server-generated, read-only attribute. To rotate:
 
-This generates a new password, updates the Neon role, overwrites the
-`DB_PASSWORD` Doppler secret, and the Doppler→Vercel sync propagates it.
-Fly containers pick it up on their next restart; trigger one with
-`flyctl machine restart -a yata-backend-prd`.
+1. Reset the password in the [Neon console](https://console.neon.tech/)
+   (Branches → `main` → Roles → `app` → Reset password) or via the API:
+   `POST /projects/{project_id}/branches/{branch_id}/roles/app/reset_password`.
+2. Run `terraform apply -refresh-only` in TFC. Terraform pulls the new
+   password into state via `neon_role.app.password`; `doppler_secret.db_password`
+   plans an in-place update on the next regular apply.
+3. The Doppler→Fly sync writes the new value to Fly and restarts the
+   machines (`restart_machines = true`); the Doppler→Vercel dashboard
+   integration re-syncs within ~30s.
 
 ### Rotate the Doppler→Fly integration credentials
 

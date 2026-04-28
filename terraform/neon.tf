@@ -1,25 +1,16 @@
 # Managed Postgres for prod.
 #
 # One Neon project, one branch (main), one read/write endpoint, one
-# database, one role. The `random_password` lets Terraform own the
-# credential lifecycle: rotating the DB password is
-# `terraform apply -replace=random_password.db`, which re-fans the new
-# value out to Doppler (and therefore to Fly via the Doppler→Fly sync
-# and to Vercel via the Doppler dashboard integration).
+# database, one role. Neon generates the role's password server-side
+# and exposes it as a sensitive computed attribute on `neon_role`; we
+# pipe that into Doppler from there. See the rotation runbook in
+# README.md — rotation is a Neon-side operation followed by
+# `terraform apply -refresh-only`.
 #
 # The kislerdm/neon provider splits compute settings out of `neon_branch`
 # and onto `neon_endpoint`: autoscale limits, the suspend timeout, and
 # the provisioner choice all live there. The branch resource itself only
 # knows about identity (project, name, parentage, protection).
-
-resource "random_password" "db" {
-  length = 32
-
-  # URL-safe: avoid symbols that require percent-encoding in the
-  # libpq/psycopg connection string. psycopg handles these fine but it
-  # makes the raw DATABASE_URL easier to copy-paste for debugging.
-  special = false
-}
 
 resource "neon_project" "yata" {
   name       = "yata"
@@ -55,7 +46,6 @@ resource "neon_role" "app" {
   project_id = neon_project.yata.id
   branch_id  = neon_branch.main.id
   name       = "app"
-  password   = random_password.db.result
 }
 
 resource "neon_database" "app" {

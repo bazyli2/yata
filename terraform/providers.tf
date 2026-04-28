@@ -19,5 +19,3 @@ provider "fly" {
 }
 
 provider "doppler" {}
-
-provider "random" {}

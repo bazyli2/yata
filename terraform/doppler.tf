@@ -88,7 +88,7 @@ resource "doppler_secret" "db_password" {
   project = "yata"
   config  = doppler_config.prd.name
   name    = "DB_PASSWORD"
-  value   = random_password.db.result
+  value   = neon_role.app.password
 }
 
 resource "doppler_secret" "db_name" {

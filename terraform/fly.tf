@@ -44,7 +44,7 @@ resource "fly_machine" "backend" {
   # lifecycle block below keeps Terraform from reverting that replacement.
   image = "flyio/hellofly:latest"
 
-  cpu_type = "shared"
+  cputype  = "shared"
   cpus     = 1
   memorymb = 256
 
