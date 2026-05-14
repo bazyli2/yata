@@ -34,27 +34,24 @@ resource "doppler_config" "prd" {
   name        = "prd"
 }
 
-# ----- Terraform environment + config + secrets data source ----------------
+# ----- Terraform secrets data source (pre-existing config) -----------------
 #
-# Infrastructure-only tokens (provider API keys) live in the `terraform`
-# config, separate from runtime secrets in `prd`. This keeps Doppler as
-# the single source of truth for all secrets.
-
-resource "doppler_environment" "terraform" {
-  project = "yata"
-  slug    = "terraform"
-  name    = "Terraform"
-}
-
-resource "doppler_config" "terraform" {
-  project     = "yata"
-  environment = doppler_environment.terraform.slug
-  name        = "terraform"
-}
+# Infrastructure-only tokens (NEON_API_KEY, VERCEL_API_TOKEN,
+# FLY_API_TOKEN) live in the `yata/terraform` Doppler config, separate
+# from runtime secrets in `prd`. This keeps Doppler as the single source
+# of truth for all secrets.
+#
+# IMPORTANT: the `yata/terraform` environment and config are created
+# manually in the Doppler dashboard as a one-time bootstrap prerequisite
+# — Terraform only *reads* them via this data source. Managing them as
+# Terraform resources would create a circular dependency: the providers
+# need these API keys to configure themselves, but they can't configure
+# until the resources that hold the keys are created. See README.md >
+# Bootstrap for setup instructions.
 
 data "doppler_secrets" "terraform" {
   project = "yata"
-  config  = doppler_config.terraform.name
+  config  = "terraform"
 }
 
 # ----- Secrets ------------------------------------------------------------

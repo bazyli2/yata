@@ -20,13 +20,13 @@ State lives in [Terraform Cloud](https://app.terraform.io/) under
 ```
 terraform/
 ├── versions.tf     # terraform core pin, provider pins, cloud {} backend
-├── providers.tf    # provider configs (tokens from TFC env vars)
+├── providers.tf    # provider configs (tokens from Doppler yata/terraform)
 ├── variables.tf    # github_repo, fly_app_name, regions, custom_domain…
 ├── locals.tf       # derived names, CORS origins
-├── neon.tf         # project, branch, endpoint, database, role, password
+├── neon.tf         # project, branch, endpoint, database, role
 ├── fly.tf          # app, v4+v6 IPs, machine (placeholder image)
 ├── vercel.tf       # project linked to GitHub, optional custom domain
-├── doppler.tf      # prd config, secrets, Fly integration + sync
+├── doppler.tf      # prd config + secrets + Fly sync; reads yata/terraform
 └── outputs.tf      # non-sensitive URLs/IDs
 ```
 
@@ -42,41 +42,57 @@ terraform/
    - Neon: <https://console.neon.tech/app/settings/api-keys>
    - Vercel: <https://vercel.com/account/tokens> (full account scope)
    - Fly: `flyctl tokens create org`
-   - Doppler: service account in the `yata` project with admin access
+   - Doppler: a personal token (free tier) or service-account token
+     (paid tier) with access to the `yata` project
 
-3. **Add them to TFC as sensitive workspace env vars.** (Not Terraform
-   variables — environment variables, so the providers pick them up
-   automatically.)
+3. **Create the `yata/terraform` Doppler config (clickops prerequisite).**
+   Terraform *reads* this config via a data source but does not *create*
+   it (creating it in the same plan would cause a circular dependency
+   — the providers need these keys to configure themselves). In the
+   Doppler dashboard:
 
-   | Variable           | Provider that reads it |
-   | ------------------ | ---------------------- |
-   | `NEON_API_KEY`     | `kislerdm/neon`        |
-   | `VERCEL_API_TOKEN` | `vercel/vercel`        |
-   | `FLY_API_TOKEN`    | `fly-apps/fly`         |
-   | `DOPPLER_TOKEN`    | `DopplerHQ/doppler`    |
+   1. Create environment **Terraform** (slug `terraform`) under project
+      `yata`.
+   2. Create config **terraform** under that environment.
+   3. Add three secrets:
 
-4. **Queue the first run in the TFC UI.** Review the plan, confirm apply.
+      | Secret             | Value source                             |
+      | ------------------ | ---------------------------------------- |
+      | `NEON_API_KEY`     | Neon API key from step 2                 |
+      | `VERCEL_API_TOKEN` | Vercel access token from step 2          |
+      | `FLY_API_TOKEN`    | Fly org token from step 2                |
+
+4. **Add `DOPPLER_TOKEN` to TFC as a sensitive workspace env var.**
+   This is the only TFC secret — everything else lives in Doppler.
+
+   | Variable        | Purpose                                     |
+   | --------------- | ------------------------------------------- |
+   | `DOPPLER_TOKEN` | Authenticates the Doppler provider; must     |
+   |                 | have access to `yata/terraform` (read) and  |
+   |                 | `yata/prd` (read + write)                   |
+
+5. **Queue the first run in the TFC UI.** Review the plan, confirm apply.
    This creates everything end-to-end: Neon project, Fly app (placeholder
    image), Vercel project, Doppler `prd` config + secrets, and the
    Doppler→Fly sync. The Doppler→Vercel integration is configured once
    in the Doppler dashboard (the Doppler Terraform provider doesn't ship
    a Vercel integration resource).
 
-5. **Mint CI deploy tokens and add to GitHub Actions secrets.**
+6. **Mint CI deploy tokens and add to GitHub Actions secrets.**
    - `DOPPLER_TOKEN_CI_DEPLOY` — a Doppler service token scoped to
      `yata/prd`, minted in the Doppler dashboard.
    - `FLY_API_TOKEN` — `flyctl tokens create deploy -a yata-backend-prd`
 
-6. **Trigger the first real backend deploy.** Push any change under
+7. **Trigger the first real backend deploy.** Push any change under
    `backend/**` to `main` — `.github/workflows/deploy-backend.yml` runs
    `alembic upgrade head` against Neon, then `flyctl deploy` to replace
    the placeholder image.
 
-7. **Trigger the first frontend deploy.** Push any change under
+8. **Trigger the first frontend deploy.** Push any change under
    `frontend/**` (or re-run in the Vercel dashboard) — Vercel's Git
    integration builds and deploys automatically.
 
-8. **Cutover from the old app.** Once `https://yata-backend-prd.fly.dev`
+9. **Cutover from the old app.** Once `https://yata-backend-prd.fly.dev`
    passes the verification checklist below, destroy the legacy app:
 
    ```sh
@@ -127,9 +143,11 @@ The Doppler→Fly sync uses the `FLY_API_TOKEN` stored in the Doppler
 
 ### Rotate a provider API token
 
-Rotate it in the provider dashboard, update the corresponding TFC
-workspace env var. No Terraform run is needed unless you're
-simultaneously applying other changes.
+Rotate the key in the provider dashboard (Neon / Vercel / Fly), then
+update the corresponding secret in the `yata/terraform` Doppler config.
+The providers re-authenticate on the next `terraform plan` or `apply`;
+no separate Terraform run is needed unless you're simultaneously
+applying other changes.
 
 ## Teardown
 
@@ -149,7 +167,7 @@ the `flyctl apps destroy` above is a backstop.
   the autoscale/suspend config drift.
 - `fly_machine.image` is `ignore_changes`'d — CI pushes the real image
   via `flyctl deploy`, and Terraform must not revert it.
-- First apply leaves `CORS_ORIGINS=[]` because the Vercel URL isn't
-  known until Vercel has deployed once. Re-apply after the first
-  frontend build to fill it in. This is safe because the frontend
-  proxies `/api/*` server-side, so the browser never exercises CORS.
+- The `yata/terraform` Doppler config is a clickops prerequisite —
+  Terraform reads it via a data source but cannot create it (doing so
+  would introduce a circular dependency at provider-configuration time).
+  See Bootstrap step 3.
