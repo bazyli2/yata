@@ -5,9 +5,10 @@
 # GitHub Actions workflow is needed on the Vercel side.
 #
 # Env vars are *not* set here — Doppler owns them and pushes them into
-# Vercel via `doppler_secrets_sync` (see doppler.tf). Keeping env-var
-# management in one place prevents drift between what Doppler thinks is
-# in prod and what Vercel actually has.
+# Vercel via the Doppler↔Vercel dashboard integration (see README.md >
+# Bootstrap step 5b). Keeping env-var management in one place prevents
+# drift between what Doppler thinks is in prod and what Vercel actually
+# has.
 
 resource "vercel_project" "frontend" {
   name      = var.vercel_project_name

@@ -1,9 +1,15 @@
-# Doppler: prod config, secrets, and the Fly.io sync.
+# Doppler: prod secrets and the Fly.io sync.
 #
 # Doppler is the single source of truth for runtime secrets. The Doppler
 # project `yata` already exists (created out-of-band during initial
-# setup) and its `dev` config is what local devbox services read. This
-# file adds a sibling `prd` environment/config next to `dev`.
+# setup) and its `dev` config is what local devbox services read.
+#
+# The `yata/prd` and `yata/terraform` environments + configs are created
+# manually in the Doppler dashboard as one-time bootstrap prerequisites
+# (see README.md > Bootstrap step 3). The Doppler Terraform provider
+# does not expose data sources for individual environments or configs, so
+# we reference them by literal name. Terraform manages the *secrets
+# inside* `prd`, but not the container itself.
 #
 # Data flow after apply:
 #
@@ -20,26 +26,12 @@
 #                       a Vercel integration resource, so this lives
 #                       outside Terraform — one-time UI setup per env)
 
-# ----- Environment + config -----------------------------------------------
-
-resource "doppler_environment" "prd" {
-  project = "yata"
-  slug    = "prd"
-  name    = "Production"
-}
-
-resource "doppler_config" "prd" {
-  project     = "yata"
-  environment = doppler_environment.prd.slug
-  name        = "prd"
-}
-
 # ----- Terraform secrets data source (pre-existing config) -----------------
 #
-# Infrastructure-only tokens (NEON_API_KEY, VERCEL_API_TOKEN,
-# FLY_API_TOKEN) live in the `yata/terraform` Doppler config, separate
-# from runtime secrets in `prd`. This keeps Doppler as the single source
-# of truth for all secrets.
+# Infrastructure-only tokens (NEON_API_KEY, NEON_ORG_ID,
+# VERCEL_API_TOKEN, FLY_API_TOKEN) live in the `yata/terraform` Doppler
+# config, separate from runtime secrets in `prd`. This keeps Doppler as
+# the single source of truth for all secrets.
 #
 # IMPORTANT: the `yata/terraform` environment and config are created
 # manually in the Doppler dashboard as a one-time bootstrap prerequisite
@@ -62,35 +54,35 @@ data "doppler_secrets" "terraform" {
 
 resource "doppler_secret" "db_host" {
   project = "yata"
-  config  = doppler_config.prd.name
+  config  = "prd"
   name    = "DB_HOST"
   value   = neon_endpoint.main.host
 }
 
 resource "doppler_secret" "db_port" {
   project = "yata"
-  config  = doppler_config.prd.name
+  config  = "prd"
   name    = "DB_PORT"
   value   = "5432"
 }
 
 resource "doppler_secret" "db_user" {
   project = "yata"
-  config  = doppler_config.prd.name
+  config  = "prd"
   name    = "DB_USER"
   value   = neon_role.app.name
 }
 
 resource "doppler_secret" "db_password" {
   project = "yata"
-  config  = doppler_config.prd.name
+  config  = "prd"
   name    = "DB_PASSWORD"
   value   = neon_role.app.password
 }
 
 resource "doppler_secret" "db_name" {
   project = "yata"
-  config  = doppler_config.prd.name
+  config  = "prd"
   name    = "DB_NAME"
   value   = neon_database.app.name
 }
@@ -100,7 +92,7 @@ resource "doppler_secret" "db_name" {
 # where this gets spliced into the URL.
 resource "doppler_secret" "db_sslmode" {
   project = "yata"
-  config  = doppler_config.prd.name
+  config  = "prd"
   name    = "DB_SSLMODE"
   value   = "require"
 }
@@ -112,7 +104,7 @@ resource "doppler_secret" "db_sslmode" {
 # list is the safety net for direct hits and staging.
 resource "doppler_secret" "cors_origins" {
   project = "yata"
-  config  = doppler_config.prd.name
+  config  = "prd"
   name    = "CORS_ORIGINS"
   value   = jsonencode(local.cors_origins)
 }
@@ -120,7 +112,7 @@ resource "doppler_secret" "cors_origins" {
 # Consumed by frontend/next.config.ts to target the Fly backend.
 resource "doppler_secret" "backend_origin" {
   project = "yata"
-  config  = doppler_config.prd.name
+  config  = "prd"
   name    = "BACKEND_ORIGIN"
   value   = local.backend_origin
 }
@@ -140,7 +132,7 @@ resource "doppler_integration_flyio" "prd" {
 resource "doppler_secrets_sync_flyio" "prd" {
   integration = doppler_integration_flyio.prd.id
   project     = "yata"
-  config      = doppler_config.prd.name
+  config      = "prd"
 
   app_id           = fly_app.backend.name
   restart_machines = true

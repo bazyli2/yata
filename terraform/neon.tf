@@ -11,11 +11,16 @@
 # and onto `neon_endpoint`: autoscale limits, the suspend timeout, and
 # the provisioner choice all live there. The branch resource itself only
 # knows about identity (project, name, parentage, protection).
+#
+# `org_id` is required — Neon migrated to an org-only model in 2024.
+# The value lives in the `yata/terraform` Doppler config alongside the
+# API key.
 
 resource "neon_project" "yata" {
   name       = "yata"
   region_id  = var.neon_region
   pg_version = 17
+  org_id     = data.doppler_secrets.terraform.map.NEON_ORG_ID
 }
 
 # Neon creates a "main" branch automatically when the project is created.

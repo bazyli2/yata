@@ -34,5 +34,5 @@ output "neon_host" {
 
 output "doppler_prd_config" {
   description = "Doppler config name that holds prod runtime secrets."
-  value       = doppler_config.prd.name
+  value       = "prd"
 }
