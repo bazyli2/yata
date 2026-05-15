@@ -21,6 +21,11 @@ resource "neon_project" "yata" {
   region_id  = var.neon_region
   pg_version = 17
   org_id     = data.doppler_secrets.terraform.map.NEON_ORG_ID
+
+  # Neon Free plan caps PITR at 6h (21600s). The provider defaults to
+  # 24h (86400s) which the API rejects on Free. Bump to 86400+ after a
+  # plan upgrade.
+  history_retention_seconds = 21600
 }
 
 # Neon creates a "main" branch automatically when the project is created.
