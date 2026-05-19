@@ -17,11 +17,6 @@ resource "vercel_project" "frontend" {
   # The Next.js app is in a subdirectory of the monorepo.
   root_directory = "frontend"
 
-  # pnpm workspace root is the repo root, not `frontend/`. Running pnpm
-  # install from the parent ensures workspace links resolve correctly and
-  # uses the committed pnpm-lock.yaml.
-  install_command = "cd .. && pnpm install --frozen-lockfile"
-
   git_repository = {
     type              = "github"
     repo              = var.github_repo
