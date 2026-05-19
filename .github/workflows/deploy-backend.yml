@@ -88,10 +88,7 @@ jobs:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_TERRAFORM }}
         # doppler run injects FLY_API_TOKEN from the yata/terraform
         # config; flyctl reads it automatically. --remote-only builds
-        # on Fly's builder instead of in the runner.
-        run: >
-          doppler run -- flyctl deploy
-          --remote-only
-          --app ${{ env.FLY_APP_NAME }}
-          --dockerfile backend/Dockerfile
-          ./backend
+        # on Fly's builder instead of in the runner. App config
+        # (region, VM size, ports) lives in backend/fly.toml.
+        working-directory: backend
+        run: doppler run -- flyctl deploy --remote-only
