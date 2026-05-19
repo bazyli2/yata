@@ -44,8 +44,9 @@ resource "neon_branch" "main" {
 }
 
 # Read/write compute endpoint for the main branch. Compute settings live
-# here, not on the branch. Scale-to-zero after 5 minutes idle; 0.25–1 CU
-# matches the workload (low steady-state, occasional bursts on deploy).
+# here, not on the branch. Free plan: fixed 0.25 CU, suspend timeout is
+# not modifiable (0 = use global default). Bump autoscaling_limit_max_cu
+# and suspend_timeout_seconds after upgrading to a paid plan.
 # `k8s-neonvm` is the autoscaling-capable provisioner — required for the
 # autoscaling_limit_* fields to take effect.
 # TODO: remove this import block after the first successful apply.
@@ -60,8 +61,8 @@ resource "neon_endpoint" "main" {
   type                     = "read_write"
   compute_provisioner      = "k8s-neonvm"
   autoscaling_limit_min_cu = 0.25
-  autoscaling_limit_max_cu = 1
-  suspend_timeout_seconds  = 300
+  autoscaling_limit_max_cu = 0.25
+  suspend_timeout_seconds  = 0
 }
 
 resource "neon_role" "app" {
