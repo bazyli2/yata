@@ -4,9 +4,8 @@
 # integration on this directory drives plan-on-PR and apply-on-merge, so
 # there is no need for a separate `terraform-apply.yml` GitHub workflow.
 #
-# Provider versions are pinned with caret ranges for stable providers and
-# tight tilde ranges for the 0.x Fly provider (which still breaks between
-# patch releases). Any bump needs a manual plan review.
+# Provider versions are pinned with caret ranges for stable providers.
+# Any bump needs a manual plan review.
 
 terraform {
   required_version = ">= 1.9.0"
@@ -28,11 +27,6 @@ terraform {
     vercel = {
       source  = "vercel/vercel"
       version = "~> 4.8"
-    }
-
-    fly = {
-      source  = "fly-apps/fly"
-      version = "~> 0.0.23"
     }
 
     doppler = {

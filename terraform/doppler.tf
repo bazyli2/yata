@@ -1,4 +1,4 @@
-# Doppler: prod secrets and the Fly.io sync.
+# Doppler: prod secrets.
 #
 # Doppler is the single source of truth for runtime secrets. The Doppler
 # project `yata` already exists (created out-of-band during initial
@@ -15,11 +15,6 @@
 #
 #   Neon ───► doppler_secret.* (prd config)
 #                   │
-#                   ├─► Fly via doppler_integration_flyio + sync
-#                   │   (Doppler writes DB_* / CORS_ORIGINS / BACKEND_ORIGIN
-#                   │    directly into the Fly app as env vars and
-#                   │    restarts the machines)
-#                   │
 #                   └─► Vercel Production env via the Doppler↔Vercel
 #                       integration configured in the Doppler dashboard
 #                       (the Doppler Terraform provider does not expose
@@ -29,7 +24,7 @@
 # ----- Terraform secrets data source (pre-existing config) -----------------
 #
 # Infrastructure-only tokens (NEON_API_KEY, NEON_ORG_ID,
-# VERCEL_API_TOKEN, FLY_API_TOKEN) live in the `yata/terraform` Doppler
+# VERCEL_API_TOKEN) live in the `yata/terraform` Doppler
 # config, separate from runtime secrets in `prd`. This keeps Doppler as
 # the single source of truth for all secrets.
 #
@@ -109,48 +104,4 @@ resource "doppler_secret" "cors_origins" {
   value   = jsonencode(local.cors_origins)
 }
 
-# Consumed by frontend/next.config.ts to target the Fly backend.
-resource "doppler_secret" "backend_origin" {
-  project = "yata"
-  config  = "prd"
-  name    = "BACKEND_ORIGIN"
-  value   = local.backend_origin
-}
 
-# ----- Fly.io sync --------------------------------------------------------
-
-# Doppler's first-party Fly.io integration. Pushes the prd config into
-# the Fly app as plain env vars and restarts machines on change, so the
-# backend container no longer needs to wrap itself in `doppler run --`.
-# The Fly API token comes from the same `terraform` Doppler config that
-# feeds the Fly Terraform provider above.
-resource "doppler_integration_flyio" "prd" {
-  name    = "fly-prd"
-  api_key = data.doppler_secrets.terraform.map.FLY_API_TOKEN
-}
-
-resource "doppler_secrets_sync_flyio" "prd" {
-  integration = doppler_integration_flyio.prd.id
-  project     = "yata"
-  config      = "prd"
-
-  app_id           = fly_app.backend.name
-  restart_machines = true
-
-  # Leave secrets in place if this sync is destroyed. Otherwise a routine
-  # `terraform destroy` (or recreate) would wipe DB_* off Fly and brick
-  # the app between plans.
-  delete_behavior = "leave_in_target"
-
-  depends_on = [
-    fly_app.backend,
-    doppler_secret.db_host,
-    doppler_secret.db_port,
-    doppler_secret.db_user,
-    doppler_secret.db_password,
-    doppler_secret.db_name,
-    doppler_secret.db_sslmode,
-    doppler_secret.cors_origins,
-    doppler_secret.backend_origin,
-  ]
-}

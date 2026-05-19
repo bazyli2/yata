@@ -1,9 +1,6 @@
 # Derived values used in multiple places.
 
 locals {
-  # Canonical backend URL. Fly auto-assigns `<app>.fly.dev` on app create.
-  backend_origin = "https://${fly_app.backend.name}.fly.dev"
-
   # Canonical frontend URL. Vercel's stable production alias is
   # `<project-name>.vercel.app`, so deriving from the configured project
   # name keeps this known at plan time and avoids the chicken-and-egg of

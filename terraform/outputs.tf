@@ -2,16 +2,6 @@
 # runtime wiring. Everything here is safe to log; secrets stay in Doppler
 # and TFC state only.
 
-output "fly_app_name" {
-  description = "Name of the Fly.io app running the backend."
-  value       = fly_app.backend.name
-}
-
-output "fly_url" {
-  description = "Public URL of the FastAPI backend on Fly.io."
-  value       = local.backend_origin
-}
-
 output "vercel_project_id" {
   description = "Vercel project ID for the Next.js frontend."
   value       = vercel_project.frontend.id

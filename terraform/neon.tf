@@ -32,6 +32,12 @@ resource "neon_project" "yata" {
 # We manage it explicitly so the role/database resources below have a
 # stable handle. If this ever fights the provider (it has in the past),
 # flip to a `data "neon_branch"` lookup and drop the configuration drift.
+# TODO: remove this import block after the first successful apply.
+import {
+  to = neon_branch.main
+  id = "ancient-bird-00716477/br-rapid-cell-alnlkhgq"
+}
+
 resource "neon_branch" "main" {
   project_id = neon_project.yata.id
   name       = "main"
@@ -42,6 +48,12 @@ resource "neon_branch" "main" {
 # matches the workload (low steady-state, occasional bursts on deploy).
 # `k8s-neonvm` is the autoscaling-capable provisioner — required for the
 # autoscaling_limit_* fields to take effect.
+# TODO: remove this import block after the first successful apply.
+import {
+  to = neon_endpoint.main
+  id = "ancient-bird-00716477/ep-dry-moon-al93noar"
+}
+
 resource "neon_endpoint" "main" {
   project_id               = neon_project.yata.id
   branch_id                = neon_branch.main.id

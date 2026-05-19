@@ -1,0 +1,17 @@
+# Exclude everything not needed by Terraform to keep uploads small and
+# avoid symlink issues from devbox/nix profiles.
+.devbox/
+.git/
+.vscode/
+.idea/
+.DS_Store
+frontend/
+backend/
+pgdata/
+**/node_modules/
+**/.next/
+**/.turbo/
+**/__pycache__/
+**/.venv/
+.process-compose*
+process-compose-*.log
