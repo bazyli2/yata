@@ -97,6 +97,14 @@ resource "doppler_secret" "db_sslmode" {
 # empty-on-first-apply caveat. The frontend still proxies /api/*
 # server-side so the browser never triggers CORS in the happy path; this
 # list is the safety net for direct hits and staging.
+# Consumed by frontend/next.config.ts to proxy /api/* to the Fly backend.
+resource "doppler_secret" "backend_origin" {
+  project = "yata"
+  config  = "prd"
+  name    = "BACKEND_ORIGIN"
+  value   = "https://yata-backend-prd.fly.dev"
+}
+
 resource "doppler_secret" "cors_origins" {
   project = "yata"
   config  = "prd"
