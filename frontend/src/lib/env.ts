@@ -26,9 +26,7 @@ const parsed = isServer
   : schema.partial().safeParse({});
 
 if (!parsed.success) {
-  const issues = parsed.error.issues
-    .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
-    .join("\n");
+  const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
   throw new Error(
     `Invalid environment variables. Secrets are managed by Doppler — ` +
       `make sure you ran \`doppler login\` and \`doppler setup\`, and that ` +
