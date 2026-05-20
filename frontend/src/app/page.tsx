@@ -1,6 +1,11 @@
 import { api, type HealthResponse, type Item } from "@/lib/api";
 import { ItemForm } from "./item-form";
 
+// Always render at request time — the page shows live backend health and
+// items, so pre-rendering at build time would be stale (and hangs the
+// build when the backend is cold/unreachable).
+export const dynamic = "force-dynamic";
+
 async function loadHealth(): Promise<HealthResponse | { status: string; error: string }> {
   try {
     const { data, error } = await api.GET("/api/health");
