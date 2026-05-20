@@ -4,22 +4,17 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 
-RUN python -m venv .venv
-COPY pyproject.toml ./
-RUN .venv/bin/pip install .
+# Use uv for fast, reproducible installs from the lockfile.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
 
 FROM python:3.12-slim
 WORKDIR /app
 
-# Install the Doppler CLI from Doppler's apt repo so the container can
-# `doppler run -- ...` at startup and pull DB_* / CORS_ORIGINS / etc.
-# from the `prd` config.
-#
-# NOTE: production secrets now arrive as plain Fly env vars via the
-# `doppler_secrets_sync_flyio.prd` push (see terraform/doppler.tf), so
-# `doppler run` is no longer required at startup in prod. It's still
-# useful for local/dev runs that pass DOPPLER_TOKEN explicitly. A
-# follow-up should switch the prod CMD to invoke fastapi directly.
+# Install the Doppler CLI so the container can fetch secrets at startup
+# via `doppler run -- ...`. The Fly app needs DOPPLER_TOKEN set as a
+# secret (pointing at the yata/prd Doppler config).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl gnupg \
     && curl -sSfL https://packages.doppler.com/public/cli/gpg.DE2A7741A397C129.key \
@@ -37,5 +32,5 @@ COPY . .
 EXPOSE 8080
 
 # `doppler run` resolves DOPPLER_TOKEN → prd secrets → env vars, then
-# execs fastapi. Binding to 0.0.0.0:8080 matches fly_machine.services.
-CMD ["doppler", "run", "--", "/app/.venv/bin/fastapi", "run", "--host", "0.0.0.0", "--port", "8080"]
+# execs uvicorn. Binding to 0.0.0.0:8080 matches fly.toml http_service.
+CMD ["doppler", "run", "--", "/app/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
