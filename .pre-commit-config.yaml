@@ -50,21 +50,11 @@ repos:
         exclude: ^backend/alembic/versions/
 
   # ---- frontend: prettier -----------------------------------------------
-  # ESLint is intentionally NOT a pre-commit hook: it's slow, and it already
-  # runs in CI (frontend-lint job). Keeping pre-commit fast is worth the
-  # slight duplication.
-  - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.8.1
-    hooks:
-      - id: prettier
-        files: ^frontend/
-        # Match frontend/.prettierignore behavior; node_modules and generated
-        # files should never be formatted by the hook.
-        exclude: ^frontend/(node_modules/|\.next/|src/lib/api-types\.ts$)
-        additional_dependencies:
-          - prettier@3.8.1
-          - prettier-plugin-tailwindcss@0.7.2
-          - tailwindcss@4
+  # Prettier is NOT a pre-commit hook: the prettier-plugin-tailwindcss
+  # plugin can't resolve correctly in pre-commit's isolated Node.js env.
+  # Formatting is enforced by the frontend-lint CI job (`pnpm format:check`)
+  # which runs from frontend/ where the plugin is properly installed.
+  # Same rationale as ESLint — CI already catches it, keeping hooks fast.
 
   # ---- secret scanning --------------------------------------------------
   # Defense in depth: the repo policy is "no .env files, secrets live in
