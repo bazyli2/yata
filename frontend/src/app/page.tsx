@@ -1,14 +1,16 @@
 import { api, type HealthResponse, type Item } from "@/lib/api";
 import { ItemForm } from "./item-form";
 
-// Always render at request time — the page shows live backend health and
-// items, so pre-rendering at build time would be stale (and hangs the
-// build when the backend is cold/unreachable).
-export const dynamic = "force-dynamic";
+// Short timeout for backend fetches during static generation. At build
+// time the Fly backend may be cold or unreachable; the page gracefully
+// falls back to "unreachable" / empty items, so a fast failure is fine.
+const FETCH_TIMEOUT_MS = 5_000;
 
 async function loadHealth(): Promise<HealthResponse | { status: string; error: string }> {
   try {
-    const { data, error } = await api.GET("/api/health");
+    const { data, error } = await api.GET("/api/health", {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (error || !data) {
       throw new Error("Failed to load health");
     }
@@ -20,7 +22,9 @@ async function loadHealth(): Promise<HealthResponse | { status: string; error: s
 
 async function loadItems(): Promise<Item[]> {
   try {
-    const { data } = await api.GET("/api/items");
+    const { data } = await api.GET("/api/items", {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     return data ?? [];
   } catch {
     return [];
