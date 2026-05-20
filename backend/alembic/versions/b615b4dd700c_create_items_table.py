@@ -1,7 +1,7 @@
 """create items table
 
 Revision ID: b615b4dd700c
-Revises: 
+Revises:
 Create Date: 2026-04-07 14:32:12.181234
 
 """
