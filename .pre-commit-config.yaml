@@ -64,6 +64,7 @@ repos:
         additional_dependencies:
           - prettier@3.8.1
           - prettier-plugin-tailwindcss@0.7.2
+          - tailwindcss@4
 
   # ---- secret scanning --------------------------------------------------
   # Defense in depth: the repo policy is "no .env files, secrets live in

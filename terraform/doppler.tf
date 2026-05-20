@@ -111,4 +111,3 @@ resource "doppler_secret" "cors_origins" {
   name    = "CORS_ORIGINS"
   value   = jsonencode(local.cors_origins)
 }
-
