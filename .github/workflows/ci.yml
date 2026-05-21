@@ -370,7 +370,7 @@ jobs:
           --health-retries 10
 
     env:
-      DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_CI }}
 
     steps:
       - uses: actions/checkout@v6
