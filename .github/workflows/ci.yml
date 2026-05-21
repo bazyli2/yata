@@ -41,6 +41,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      e2e: ${{ steps.filter.outputs.e2e }}
     steps:
       - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v4
@@ -55,6 +56,11 @@ jobs:
               - 'frontend/**'
               - '.github/workflows/ci.yml'
               - 'openapi.json'
+            e2e:
+              - 'backend/**'
+              - 'frontend/**'
+              - 'e2e/**'
+              - '.github/workflows/ci.yml'
 
   # ---------------------------------------------------------------------------
   # Backend: ruff lint + format check
@@ -334,6 +340,116 @@ jobs:
       - uses: pre-commit/action@v3.0.1
 
   # ---------------------------------------------------------------------------
+  # E2E: Playwright end-to-end tests against the full stack.
+  #
+  # Starts Postgres as a service container, boots the backend and frontend
+  # via Playwright's webServer-less mode (CI=true), and runs the Chromium
+  # test suite. Secrets are injected by Doppler using a service token stored
+  # as DOPPLER_TOKEN in GitHub Secrets.
+  # ---------------------------------------------------------------------------
+  e2e:
+    name: E2E tests (Playwright)
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: |
+            frontend/pnpm-lock.yaml
+            e2e/pnpm-lock.yaml
+
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: e2e
+        run: pnpm exec playwright install chromium --with-deps
+
+      - name: Run migrations
+        working-directory: backend
+        run: doppler run -- uv run alembic upgrade head
+
+      - name: Start backend
+        working-directory: backend
+        run: doppler run -- uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+
+      - name: Start frontend
+        working-directory: frontend
+        run: doppler run -- pnpm dev --port 3000 &
+
+      - name: Wait for services
+        run: |
+          echo "Waiting for backend..."
+          timeout 30 bash -c 'until curl -sf http://localhost:8000/api/health; do sleep 1; done'
+          echo ""
+          echo "Waiting for frontend..."
+          timeout 30 bash -c 'until curl -sf http://localhost:3000; do sleep 1; done'
+          echo ""
+          echo "All services ready."
+
+      - name: Run Playwright tests
+        working-directory: e2e
+        run: pnpm exec playwright test
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: e2e/blob-report/
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
   # Aggregator: single required check for branch protection.
   #
   # Having one job that `needs:` every other job means branch protection can
@@ -352,6 +468,7 @@ jobs:
       - frontend-build
       - types-fresh
       - pre-commit
+      - e2e
     runs-on: ubuntu-latest
     steps:
       - name: Verify all required jobs succeeded
