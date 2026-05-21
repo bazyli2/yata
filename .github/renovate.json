@@ -58,6 +58,13 @@
       "commitMessagePrefix": "chore(frontend):"
     },
     {
+      "description": "Group all E2E npm deps into one PR per week.",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["e2e/**"],
+      "groupName": "e2e npm deps",
+      "commitMessagePrefix": "chore(e2e):"
+    },
+    {
       "description": "Group GitHub Actions updates.",
       "matchManagers": ["github-actions"],
       "groupName": "github actions",
@@ -84,7 +91,8 @@
         "alembic",
         "pydantic",
         "pydantic-settings",
-        "uvicorn"
+        "uvicorn",
+        "@playwright/test"
       ],
       "matchUpdateTypes": ["major"],
       "automerge": false,
