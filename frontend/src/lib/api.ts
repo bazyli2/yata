@@ -24,15 +24,36 @@ export const api = createClient<paths>({
   baseUrl: typeof window === "undefined" ? env.BACKEND_ORIGIN : "",
 });
 
-// In Next.js 16 the native fetch is not cached by default inside Server
-// Components, so we don't need to override anything here. If you ever want
-// to force no-store (or add auth headers), add a middleware via `api.use`.
-//
-// Example:
-//   api.use({
-//     onRequest: ({ request }) =>
-//       new Request(request, { cache: "no-store" }),
-//   });
+/**
+ * Create an authenticated API client for use in Server Components.
+ *
+ * This fetches the Auth0 access token from the session and attaches it
+ * as a Bearer token on every request so the FastAPI backend can verify
+ * the user.
+ */
+export async function getAuthenticatedApi() {
+  // Dynamic import so this module can still be imported from client
+  // components without pulling in server-only code at build time.
+  const { auth0 } = await import("./auth0");
+
+  const tokenResponse = await auth0.getAccessToken();
+  const token = tokenResponse?.token;
+
+  const authedApi = createClient<paths>({
+    baseUrl: env.BACKEND_ORIGIN,
+  });
+
+  if (token) {
+    authedApi.use({
+      onRequest: ({ request }) => {
+        request.headers.set("Authorization", `Bearer ${token}`);
+        return request;
+      },
+    });
+  }
+
+  return authedApi;
+}
 
 // Re-export a few handy aliases derived from the generated schema so
 // consumers don't have to keep writing `components["schemas"]["…"]`.

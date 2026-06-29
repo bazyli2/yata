@@ -1,41 +1,31 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { useState } from "react";
+import { createItem } from "./actions";
 
 export function ItemForm() {
-  const router = useRouter();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-    if (!name.trim()) {
-      setError("Name is required.");
-      return;
-    }
+    setIsPending(true);
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+
     try {
-      const { error: apiError } = await api.POST("/api/items", {
-        body: {
-          name: name.trim(),
-          description: description.trim() || null,
-        },
-      });
-      if (apiError) {
-        setError("Failed to create item");
-        return;
+      const result = await createItem(formData);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        form.reset();
       }
-      setName("");
-      setDescription("");
-      startTransition(() => {
-        router.refresh();
-      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create item");
+    } finally {
+      setIsPending(false);
     }
   }
 
@@ -44,16 +34,14 @@ export function ItemForm() {
       <h3 className="text-sm font-medium text-black dark:text-zinc-50">Create an item</h3>
       <input
         type="text"
+        name="name"
         placeholder="Name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
         className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-black outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
       />
       <input
         type="text"
+        name="description"
         placeholder="Description (optional)"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
         className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-black outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
       />
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
