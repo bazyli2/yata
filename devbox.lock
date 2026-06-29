@@ -1,42 +1,6 @@
 {
   "lockfile_version": "1",
   "packages": {
-    "chromium@latest": {
-      "last_modified": "2026-05-21T08:15:18Z",
-      "resolved": "github:NixOS/nixpkgs/4a29d733e8a7d5b824c3d8c958a946a9867b3eb2#chromium",
-      "source": "devbox-search",
-      "version": "148.0.7778.178",
-      "systems": {
-        "aarch64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/0ch75b73834qs69s17nyznv618wadx82-chromium-148.0.7778.178",
-              "default": true
-            },
-            {
-              "name": "sandbox",
-              "path": "/nix/store/jqpvycw2si2bpzis0sg7iyg71rcdq9bl-chromium-148.0.7778.178-sandbox"
-            }
-          ],
-          "store_path": "/nix/store/0ch75b73834qs69s17nyznv618wadx82-chromium-148.0.7778.178"
-        },
-        "x86_64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/r7ifk1v95jfl02775kgbrd61dyr1rfsx-chromium-148.0.7778.178",
-              "default": true
-            },
-            {
-              "name": "sandbox",
-              "path": "/nix/store/rn4ksj49qzy1yyjd9h4w7wg4kii5qs2p-chromium-148.0.7778.178-sandbox"
-            }
-          ],
-          "store_path": "/nix/store/r7ifk1v95jfl02775kgbrd61dyr1rfsx-chromium-148.0.7778.178"
-        }
-      }
-    },
     "doppler@latest": {
       "last_modified": "2026-03-21T07:29:51Z",
       "resolved": "github:NixOS/nixpkgs/09061f748ee21f68a089cd5d91ec1859cd93d0be#doppler",

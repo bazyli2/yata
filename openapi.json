@@ -69,16 +69,11 @@
             "minLength": 1,
             "title": "Name",
             "type": "string"
-          },
-          "user_id": {
-            "title": "User Id",
-            "type": "string"
           }
         },
         "required": [
           "name",
           "id",
-          "user_id",
           "created_at"
         ],
         "title": "ItemRead",
@@ -123,12 +118,6 @@
         ],
         "title": "ValidationError",
         "type": "object"
-      }
-    },
-    "securitySchemes": {
-      "HTTPBearer": {
-        "scheme": "bearer",
-        "type": "http"
       }
     }
   },
@@ -204,11 +193,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Items",
         "tags": [
           "items"
@@ -248,11 +232,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Item",
         "tags": [
           "items"
@@ -288,11 +267,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Item",
         "tags": [
           "items"
@@ -333,11 +307,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Item",
         "tags": [
           "items"
