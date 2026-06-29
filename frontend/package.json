@@ -14,6 +14,7 @@
     "gen:types": "openapi-typescript ../openapi.json -o src/lib/api-types.ts"
   },
   "dependencies": {
+    "@auth0/nextjs-auth0": "^4",
     "next": "16.2.2",
     "openapi-fetch": "^0.17.0",
     "react": "19.2.4",

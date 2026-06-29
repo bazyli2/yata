@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     cors_origins: list[str] = []
     api_prefix: str = "/api"
 
+    # Auth0 JWT verification. The domain and audience must match the Auth0
+    # tenant and API identifier configured in the Auth0 dashboard.
+    auth0_domain: str = ""
+    auth0_audience: str = ""
+    auth0_algorithms: list[str] = ["RS256"]
+
     @field_validator("api_prefix")
     @classmethod
     def _prefix_must_start_with_slash(cls, v: str) -> str:
