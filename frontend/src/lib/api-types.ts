@@ -103,6 +103,8 @@ export interface components {
             id: number;
             /** Name */
             name: string;
+            /** User Id */
+            user_id: string;
         };
         /** ValidationError */
         ValidationError: {
