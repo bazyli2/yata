@@ -49,12 +49,54 @@ repos:
         files: ^backend/
         exclude: ^backend/alembic/versions/
 
-  # ---- frontend: prettier -----------------------------------------------
-  # Prettier is NOT a pre-commit hook: the prettier-plugin-tailwindcss
-  # plugin can't resolve correctly in pre-commit's isolated Node.js env.
-  # Formatting is enforced by the frontend-lint CI job (`pnpm format:check`)
-  # which runs from frontend/ where the plugin is properly installed.
-  # Same rationale as ESLint — CI already catches it, keeping hooks fast.
+  # ---- frontend: prettier + eslint + typecheck --------------------------
+  # These run as `local` (language: system) hooks rather than via
+  # pre-commit's isolated Node.js env, because prettier-plugin-tailwindcss
+  # (and the eslint flat config) can only resolve from frontend/ where the
+  # project's own node_modules live. They shell into frontend/ and reuse the
+  # exact pnpm scripts CI runs, so local and CI stay in lockstep.
+  #
+  # Requires the devbox shell (pnpm on PATH). prettier + eslint run at
+  # commit time (fast); the slower tsc typecheck runs at pre-push, matching
+  # the openapi-types-fresh hook below.
+  - repo: local
+    hooks:
+      - id: frontend-prettier
+        name: frontend prettier (format:check)
+        entry: sh -c 'cd frontend && pnpm format:check'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^frontend/
+
+      - id: frontend-eslint
+        name: frontend eslint
+        entry: sh -c 'cd frontend && pnpm lint'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^frontend/
+
+      - id: frontend-typecheck
+        name: frontend typecheck (tsc)
+        entry: sh -c 'cd frontend && pnpm typecheck'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^frontend/
+
+  # ---- backend: pytest (pre-push) ---------------------------------------
+  # Fast (SQLite in-memory, ~0.1s) but runs at pre-push to keep commits
+  # snappy. Requires the devbox shell (uv on PATH).
+  - repo: local
+    hooks:
+      - id: backend-pytest
+        name: backend pytest
+        entry: sh -c 'cd backend && uv run pytest'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^backend/
 
   # ---- secret scanning --------------------------------------------------
   # Defense in depth: the repo policy is "no .env files, secrets live in
