@@ -135,7 +135,10 @@ export default async function Home() {
           <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
             <h2 className="text-lg font-medium text-black dark:text-zinc-50">Items</h2>
             <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-500">
-              <a href="/auth/login" className="underline hover:text-zinc-700 dark:hover:text-zinc-300">
+              <a
+                href="/auth/login"
+                className="underline hover:text-zinc-700 dark:hover:text-zinc-300"
+              >
                 Log in
               </a>{" "}
               to view and manage your items.
