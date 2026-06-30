@@ -341,11 +341,18 @@ jobs:
   # ---------------------------------------------------------------------------
   # Pre-commit: runs the same hooks that developers run locally. Single source
   # of truth for formatting/lint rules lives in .pre-commit-config.yaml.
+  #
+  # The frontend (pnpm) and backend-pytest (uv) hooks are `language: system`
+  # and require the devbox toolchain on PATH, which this lightweight job does
+  # not set up. They're skipped here because the dedicated frontend-lint,
+  # frontend-typecheck, and backend-test jobs already cover them in CI.
   # ---------------------------------------------------------------------------
   pre-commit:
     name: pre-commit hooks
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      SKIP: frontend-prettier,frontend-eslint,frontend-typecheck,backend-pytest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
