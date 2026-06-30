@@ -26,10 +26,37 @@ export default defineConfig({
   },
 
   projects: [
+    // Logs in via Auth0 once and saves the session to disk.
+    {
+      name: "setup",
+      testMatch: /auth\.setup\.ts/,
+      use: {
+        launchOptions: {
+          executablePath:
+            process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+        },
+      },
+    },
+    // Unauthenticated smoke tests — no saved session needed.
     {
       name: "chromium",
+      testIgnore: /items\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
+        launchOptions: {
+          executablePath:
+            process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+        },
+      },
+    },
+    // Authenticated tests — reuse the session saved by the setup project.
+    {
+      name: "chromium-auth",
+      testMatch: /items\.spec\.ts/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "tests/.auth/session.json",
         launchOptions: {
           executablePath:
             process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
