@@ -264,11 +264,17 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        # BACKEND_ORIGIN is normally server-only at runtime (injected by Doppler).
-        # For a build we just need it to be present; the value isn't baked into
-        # client bundles, so a dummy placeholder is safe.
+        # These vars are server-only at runtime (injected by Doppler) and are
+        # validated at module load by src/lib/env.ts. For a build we just need
+        # them to be present; none are baked into client bundles (no
+        # NEXT_PUBLIC_ prefix), so dummy placeholders are safe.
         env:
           BACKEND_ORIGIN: http://localhost:8000
+          AUTH0_SECRET: build-time-placeholder-secret-not-used-at-runtime
+          AUTH0_DOMAIN: example.auth0.com
+          AUTH0_CLIENT_ID: build-time-placeholder
+          AUTH0_CLIENT_SECRET: build-time-placeholder
+          AUTH0_AUDIENCE: https://build-time-placeholder
         run: pnpm build
 
   # ---------------------------------------------------------------------------
@@ -477,7 +483,10 @@ jobs:
 
       - name: Run Playwright tests
         working-directory: e2e
-        run: pnpm exec playwright test
+        # Run under `doppler run` so the Auth0 E2E test credentials
+        # (E2E_AUTH0_USERNAME / E2E_AUTH0_PASSWORD) are injected into the
+        # Playwright process for the auth.setup.ts login flow.
+        run: doppler run -- pnpm exec playwright test
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4

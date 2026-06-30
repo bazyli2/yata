@@ -15,8 +15,9 @@
       "version":        "17",
       "disable_plugin": true
     },
-    "terraform": "latest",
-    "chromium":  "latest"
+    "terraform":  "latest",
+    "chromium":   "latest",
+    "github-cli": "latest"
   },
   "env": {
     "PGDATA":     "$PWD/pgdata",

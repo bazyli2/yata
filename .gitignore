@@ -36,6 +36,8 @@ process-compose-*.log
 e2e/test-results/
 e2e/playwright-report/
 e2e/blob-report/
+# Saved authenticated browser session (contains Auth0 tokens/cookies).
+e2e/tests/.auth/
 
 # Editors / OS
 .vscode/
