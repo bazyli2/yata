@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
+
 import { defineConfig, devices } from "@playwright/test";
 
 /**
@@ -11,6 +14,13 @@ import { defineConfig, devices } from "@playwright/test";
  */
 
 const isCI = !!process.env.CI;
+
+// The authenticated project reuses a session saved by auth.setup.ts. When the
+// Auth0 test credentials aren't available the setup is skipped and no session
+// file is written, so only point at the file when it actually exists to avoid
+// Playwright erroring on a missing storageState path.
+const sessionStatePath = path.join(__dirname, "tests", ".auth", "session.json");
+const storageState = existsSync(sessionStatePath) ? sessionStatePath : undefined;
 
 export default defineConfig({
   testDir: "./tests",
@@ -56,7 +66,7 @@ export default defineConfig({
       dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],
-        storageState: "tests/.auth/session.json",
+        storageState,
         launchOptions: {
           executablePath:
             process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,

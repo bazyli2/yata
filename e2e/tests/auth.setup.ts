@@ -14,21 +14,27 @@ import { expect, test as setup } from "@playwright/test";
  * Credentials come from environment variables (managed by Doppler):
  *   - E2E_AUTH0_USERNAME
  *   - E2E_AUTH0_PASSWORD
+ *
+ * When the credentials aren't available (e.g. a fork PR without access to
+ * secrets), the setup is skipped at the suite level so no browser is launched.
+ * The dependent authenticated tests are skipped too, while the unauthenticated
+ * smoke tests still run.
  */
 
 export const STORAGE_STATE = path.join(__dirname, ".auth", "session.json");
 
-setup("authenticate via Auth0", async ({ page }) => {
-  const username = process.env.E2E_AUTH0_USERNAME;
-  const password = process.env.E2E_AUTH0_PASSWORD;
+const hasCredentials = !!(
+  process.env.E2E_AUTH0_USERNAME && process.env.E2E_AUTH0_PASSWORD
+);
 
-  if (!username || !password) {
-    throw new Error(
-      "Missing E2E_AUTH0_USERNAME / E2E_AUTH0_PASSWORD. Set them in Doppler " +
-        "(or your environment) and run the suite via `doppler run -- ...` so the " +
-        "auth setup can log in to Auth0.",
-    );
-  }
+setup.skip(
+  !hasCredentials,
+  "E2E_AUTH0_USERNAME / E2E_AUTH0_PASSWORD not set — skipping authenticated tests.",
+);
+
+setup("authenticate via Auth0", async ({ page }) => {
+  const username = process.env.E2E_AUTH0_USERNAME!;
+  const password = process.env.E2E_AUTH0_PASSWORD!;
 
   // Kick off the login flow; the SDK redirects to the Auth0 Universal Login page.
   await page.goto("/auth/login");
