@@ -30,6 +30,26 @@ install_frontend() {
   fi
 }
 
+install_precommit_hooks() {
+  # Only inside a git work tree with a config present.
+  if [ ! -f .pre-commit-config.yaml ] || ! git rev-parse --git-dir >/dev/null 2>&1; then
+    return
+  fi
+  local hooks_dir
+  hooks_dir="$(git rev-parse --git-path hooks)"
+  # Install commit-time hooks if missing.
+  if [ ! -f "$hooks_dir/pre-commit" ]; then
+    echo "[devbox] Installing pre-commit git hooks"
+    pre-commit install >/dev/null
+  fi
+  # Install the slower pre-push hooks (typecheck, pytest) if missing.
+  if [ ! -f "$hooks_dir/pre-push" ]; then
+    echo "[devbox] Installing pre-commit pre-push git hooks"
+    pre-commit install --hook-type pre-push >/dev/null
+  fi
+}
+
 ensure_postgres
 install_backend
 install_frontend
+install_precommit_hooks

@@ -342,22 +342,36 @@ jobs:
   # Pre-commit: runs the same hooks that developers run locally. Single source
   # of truth for formatting/lint rules lives in .pre-commit-config.yaml.
   #
-  # The frontend (pnpm) and backend-pytest (uv) hooks are `language: system`
-  # and require the devbox toolchain on PATH, which this lightweight job does
-  # not set up. They're skipped here because the dedicated frontend-lint,
-  # frontend-typecheck, and backend-test jobs already cover them in CI.
+  # Several hooks are `language: system` (they use the devbox toolchain on PATH
+  # so they run on NixOS, where pre-commit's downloaded generic-linux binaries
+  # can't execute). This lightweight job doesn't set up the full devbox, so:
+  #   - frontend-* and backend-pytest are SKIPped here — the dedicated
+  #     frontend-lint, frontend-typecheck, and backend-test jobs cover them.
+  #   - ruff / ruff-format are SKIPped here — the backend-lint job covers them.
+  #   - gitleaks is NOT covered elsewhere, so we install it and let it run.
   # ---------------------------------------------------------------------------
   pre-commit:
     name: pre-commit hooks
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      SKIP: frontend-prettier,frontend-eslint,frontend-typecheck,backend-pytest
+      SKIP: frontend-prettier,frontend-eslint,frontend-typecheck,backend-pytest,ruff,ruff-format
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install gitleaks
+        # The gitleaks hook is language: system and needs the binary on PATH.
+        # Download the pinned release (matches devbox.json → gitleaks) instead
+        # of the gitleaks-action, which runs its own scan and can require a
+        # license. /usr/local/bin is already on PATH on GitHub runners.
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
       - uses: pre-commit/action@v3.0.1
 
   # ---------------------------------------------------------------------------
