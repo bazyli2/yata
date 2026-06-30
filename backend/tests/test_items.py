@@ -52,7 +52,10 @@ def test_unauthenticated_request_is_rejected(client: TestClient) -> None:
     app.dependency_overrides.pop(get_current_user, None)
     try:
         res = client.get("/api/items")
-        assert res.status_code == 403  # HTTPBearer returns 403 when no credentials
+        # FastAPI's HTTPBearer rejects requests with no Authorization header.
+        # The exact status depends on the Starlette version (401 or 403);
+        # both indicate the request was rejected for missing credentials.
+        assert res.status_code in (401, 403)
     finally:
         # Restore for other tests (fixture cleanup will also clear).
         async def _override() -> dict:
