@@ -90,4 +90,4 @@ async def get_current_user(
         return payload
 
     except JWTError:
-        raise credentials_exception
+        raise credentials_exception from None
