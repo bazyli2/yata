@@ -38,32 +38,91 @@ repos:
         args: [--fix=lf]
 
   # ---- backend: ruff lint + format --------------------------------------
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.9
+  # Run via `local` (language: system) using the devbox-provided ruff rather
+  # than pre-commit's downloaded binary: the latter is a generic-linux build
+  # that can't execute on NixOS (dynamic-linker mismatch). The devbox ruff
+  # version is pinned in devbox.json and mirrored by the CI version matrix.
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix]
+        name: ruff
+        entry: ruff check --fix
+        language: system
+        types_or: [python, pyi]
         files: ^backend/
         exclude: ^backend/alembic/versions/
       - id: ruff-format
+        name: ruff-format
+        entry: ruff format
+        language: system
+        types_or: [python, pyi]
         files: ^backend/
         exclude: ^backend/alembic/versions/
 
-  # ---- frontend: prettier -----------------------------------------------
-  # Prettier is NOT a pre-commit hook: the prettier-plugin-tailwindcss
-  # plugin can't resolve correctly in pre-commit's isolated Node.js env.
-  # Formatting is enforced by the frontend-lint CI job (`pnpm format:check`)
-  # which runs from frontend/ where the plugin is properly installed.
-  # Same rationale as ESLint — CI already catches it, keeping hooks fast.
+  # ---- frontend: prettier + eslint + typecheck --------------------------
+  # These run as `local` (language: system) hooks rather than via
+  # pre-commit's isolated Node.js env, because prettier-plugin-tailwindcss
+  # (and the eslint flat config) can only resolve from frontend/ where the
+  # project's own node_modules live. They shell into frontend/ and reuse the
+  # exact pnpm scripts CI runs, so local and CI stay in lockstep.
+  #
+  # Requires the devbox shell (pnpm on PATH). prettier + eslint run at
+  # commit time (fast); the slower tsc typecheck runs at pre-push, matching
+  # the openapi-types-fresh hook below.
+  - repo: local
+    hooks:
+      - id: frontend-prettier
+        name: frontend prettier (format:check)
+        entry: sh -c 'cd frontend && pnpm format:check'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^frontend/
+
+      - id: frontend-eslint
+        name: frontend eslint
+        entry: sh -c 'cd frontend && pnpm lint'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^frontend/
+
+      - id: frontend-typecheck
+        name: frontend typecheck (tsc)
+        entry: sh -c 'cd frontend && pnpm typecheck'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^frontend/
+
+  # ---- backend: pytest (pre-push) ---------------------------------------
+  # Fast (SQLite in-memory, ~0.1s) but runs at pre-push to keep commits
+  # snappy. Requires the devbox shell (uv on PATH).
+  - repo: local
+    hooks:
+      - id: backend-pytest
+        name: backend pytest
+        entry: sh -c 'cd backend && uv run pytest'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^backend/
 
   # ---- secret scanning --------------------------------------------------
   # Defense in depth: the repo policy is "no .env files, secrets live in
   # Doppler", but if anyone ever commits a credential by accident this hook
   # blocks it at the source.
-  - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.30.1
+  #
+  # Run via `local` (language: system) using the devbox-provided gitleaks for
+  # the same reason as ruff: pre-commit's downloaded binary is a generic-linux
+  # build that won't run on NixOS. Version pinned in devbox.json.
+  - repo: local
     hooks:
       - id: gitleaks
+        name: Detect hardcoded secrets
+        entry: gitleaks git --pre-commit --redact --staged --verbose
+        language: system
+        pass_filenames: false
 
   # ---- generated OpenAPI types freshness (pre-push only) ---------------
   # Regenerates openapi.json and frontend/src/lib/api-types.ts from the

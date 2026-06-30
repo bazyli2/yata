@@ -17,7 +17,9 @@
     },
     "terraform":  "latest",
     "chromium":   "latest",
-    "github-cli": "latest"
+    "github-cli": "latest",
+    "pre-commit": "latest",
+    "gitleaks":   "latest"
   },
   "env": {
     "PGDATA":     "$PWD/pgdata",
