@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
@@ -14,6 +15,28 @@ import { defineConfig, devices } from "@playwright/test";
  */
 
 const isCI = !!process.env.CI;
+
+// Resolve the Chromium executable.
+//
+// devbox.json sets PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH to the bare command
+// name "chromium", but Playwright's launchOptions.executablePath expects an
+// absolute filesystem path (it does NOT resolve names via $PATH). So if the
+// value is a bare name, resolve it with `which`. An absolute path is used
+// as-is, and an unset value (e.g. CI) falls back to Playwright's bundled
+// browser by returning undefined.
+function resolveChromiumPath(): string | undefined {
+  const envPath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  if (!envPath) return undefined;
+  if (envPath.startsWith("/")) return envPath;
+  try {
+    return execSync(`command -v ${envPath}`, { encoding: "utf-8" }).trim();
+  } catch {
+    // Let Playwright surface a clear "executable doesn't exist" error.
+    return envPath;
+  }
+}
+
+const chromiumPath = resolveChromiumPath();
 
 // The authenticated project reuses a session saved by auth.setup.ts. When the
 // Auth0 test credentials aren't available the setup is skipped and no session
@@ -42,8 +65,7 @@ export default defineConfig({
       testMatch: /auth\.setup\.ts/,
       use: {
         launchOptions: {
-          executablePath:
-            process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+          executablePath: chromiumPath,
         },
       },
     },
@@ -54,8 +76,7 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         launchOptions: {
-          executablePath:
-            process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+          executablePath: chromiumPath,
         },
       },
     },
@@ -68,8 +89,7 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         storageState,
         launchOptions: {
-          executablePath:
-            process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+          executablePath: chromiumPath,
         },
       },
     },
