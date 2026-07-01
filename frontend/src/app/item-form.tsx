@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createItem } from "./actions";
 
 export function ItemForm() {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
 
@@ -21,6 +23,11 @@ export function ItemForm() {
         setError(result.error);
       } else {
         form.reset();
+        // The server action calls revalidatePath("/"), but because it's
+        // invoked imperatively (not via a <form action>), the current route
+        // won't re-render on its own. Refresh to pull the updated server
+        // component (with the new item) into view.
+        router.refresh();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create item");

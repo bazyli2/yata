@@ -14,18 +14,19 @@ import { expect, test } from "@playwright/test";
  */
 
 test.skip(
-  !process.env.E2E_AUTH0_USERNAME || !process.env.E2E_AUTH0_PASSWORD,
-  "E2E_AUTH0_USERNAME / E2E_AUTH0_PASSWORD not set — skipping authenticated tests.",
+  !process.env.E2E_TEST_USERNAME || !process.env.E2E_TEST_PASSWORD,
+  "E2E_TEST_USERNAME / E2E_TEST_PASSWORD not set — skipping authenticated tests.",
 );
 
 test.describe("Items (authenticated)", () => {
   test("logged-in user can add an item and see it in the list", async ({
     page,
   }) => {
-    // Use a unique name so the test is repeatable without colliding with
-    // items created by previous runs.
-    const itemName = `E2E item ${Date.now()}`;
-    const itemDescription = "Created by Playwright e2e test";
+    // Use unique values so the test is repeatable without colliding with
+    // items created by previous runs (the DB persists between runs locally).
+    const unique = Date.now();
+    const itemName = `E2E item ${unique}`;
+    const itemDescription = `Created by Playwright e2e test ${unique}`;
 
     await page.goto("/");
 
@@ -40,8 +41,11 @@ test.describe("Items (authenticated)", () => {
     await page.getByRole("button", { name: "Add item" }).click();
 
     // The new item should appear in the list after the page revalidates.
-    await expect(page.getByText(itemName)).toBeVisible();
-    await expect(page.getByText(itemDescription)).toBeVisible();
+    // Scope the assertions to the specific list item so accumulated items
+    // from earlier runs don't cause strict-mode ambiguity.
+    const newItem = page.getByRole("listitem").filter({ hasText: itemName });
+    await expect(newItem).toBeVisible();
+    await expect(newItem.getByText(itemDescription)).toBeVisible();
   });
 
   test("name is required to add an item", async ({ page }) => {
