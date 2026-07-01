@@ -505,7 +505,7 @@ jobs:
       - name: Run Playwright tests
         working-directory: e2e
         # Run under `doppler run` so the Auth0 E2E test credentials
-        # (E2E_AUTH0_USERNAME / E2E_AUTH0_PASSWORD) are injected into the
+        # (E2E_TEST_USERNAME / E2E_TEST_PASSWORD) are injected into the
         # Playwright process for the auth.setup.ts login flow.
         run: doppler run -- pnpm exec playwright test
 

@@ -12,8 +12,8 @@ import { expect, test as setup } from "@playwright/test";
  * logging in again for every test.
  *
  * Credentials come from environment variables (managed by Doppler):
- *   - E2E_AUTH0_USERNAME
- *   - E2E_AUTH0_PASSWORD
+ *   - E2E_TEST_USERNAME
+ *   - E2E_TEST_PASSWORD
  *
  * When the credentials aren't available (e.g. a fork PR without access to
  * secrets), the setup is skipped at the suite level so no browser is launched.
@@ -24,26 +24,29 @@ import { expect, test as setup } from "@playwright/test";
 export const STORAGE_STATE = path.join(__dirname, ".auth", "session.json");
 
 const hasCredentials = !!(
-  process.env.E2E_AUTH0_USERNAME && process.env.E2E_AUTH0_PASSWORD
+  process.env.E2E_TEST_USERNAME && process.env.E2E_TEST_PASSWORD
 );
 
 setup.skip(
   !hasCredentials,
-  "E2E_AUTH0_USERNAME / E2E_AUTH0_PASSWORD not set — skipping authenticated tests.",
+  "E2E_TEST_USERNAME / E2E_TEST_PASSWORD not set — skipping authenticated tests.",
 );
 
 setup("authenticate via Auth0", async ({ page }) => {
-  const username = process.env.E2E_AUTH0_USERNAME!;
-  const password = process.env.E2E_AUTH0_PASSWORD!;
+  const username = process.env.E2E_TEST_USERNAME!;
+  const password = process.env.E2E_TEST_PASSWORD!;
 
   // Kick off the login flow; the SDK redirects to the Auth0 Universal Login page.
   await page.goto("/auth/login");
 
-  // Auth0 Universal Login form. The default new Universal Login uses
-  // name="username" and name="password" inputs.
-  await page.getByLabel(/email|username/i).fill(username);
-  await page.getByLabel(/password/i).fill(password);
-  await page.getByRole("button", { name: /continue|log in|sign in/i }).click();
+  // Auth0 Universal Login form. Target the inputs by their stable id/name
+  // attributes rather than by label: the password field's label region also
+  // contains a "Show password" toggle, so a label match is ambiguous.
+  await page.locator("input[name='username']").fill(username);
+  await page.locator("input[name='password']").fill(password);
+  // The primary submit button carries name="action"; targeting it avoids
+  // matching social login buttons like "Continue with Google".
+  await page.locator("button[type='submit'][name='action']").click();
 
   // After a successful login, Auth0 redirects back to the app at baseURL.
   await page.waitForURL("http://localhost:3000/**");

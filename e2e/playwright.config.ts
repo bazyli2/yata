@@ -53,6 +53,10 @@ export default defineConfig({
   workers: isCI ? 1 : undefined,
   reporter: isCI ? "blob" : "html",
 
+  // Locally, ensure Postgres is up and migrations are applied before the
+  // webServer-managed backend starts serving DB-backed endpoints. No-op in CI.
+  globalSetup: isCI ? undefined : "./global-setup.ts",
+
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
