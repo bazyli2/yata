@@ -7,11 +7,15 @@ import { defineConfig, devices } from "@playwright/test";
 /**
  * Playwright E2E configuration for the yata monorepo.
  *
- * By default the `webServer` entries start both the FastAPI backend and the
- * Next.js frontend via `doppler run`, mirroring local `devbox services`.
+ * The service stack (Postgres + a disposable app_e2e DB + backend + frontend)
+ * is orchestrated outside Playwright:
+ *   - Locally, scripts/e2e.sh (behind `devbox run e2e`) brings up the stack
+ *     via e2e/process-compose.e2e.yaml, runs this suite, then tears it down.
+ *   - In CI, the workflow starts Postgres (service container), backend and
+ *     frontend (see .github/workflows/ci.yml).
  *
- * In CI the servers are started separately (see .github/workflows/ci.yml),
- * so `webServer` is skipped when the `CI` env var is set.
+ * Playwright itself does not start any servers. `global-setup.ts` performs a
+ * preflight health check and fails loudly if the stack isn't reachable.
  */
 
 const isCI = !!process.env.CI;
@@ -53,9 +57,9 @@ export default defineConfig({
   workers: isCI ? 1 : undefined,
   reporter: isCI ? "blob" : "html",
 
-  // Locally, ensure Postgres is up and migrations are applied before the
-  // webServer-managed backend starts serving DB-backed endpoints. No-op in CI.
-  globalSetup: isCI ? undefined : "./global-setup.ts",
+  // Preflight: verify the externally-managed stack is reachable before
+  // running any tests, and fail loudly if it isn't.
+  globalSetup: "./global-setup.ts",
 
   use: {
     baseURL: "http://localhost:3000",
@@ -98,28 +102,4 @@ export default defineConfig({
       },
     },
   ],
-
-  /* Start backend + frontend locally; skipped in CI where they're managed
-     by the workflow itself. */
-  ...(isCI
-    ? {}
-    : {
-        webServer: [
-          {
-            command:
-              "doppler run -- uv run uvicorn app.main:app --host 0.0.0.0 --port 8000",
-            cwd: "../backend",
-            url: "http://localhost:8000/api/health",
-            reuseExistingServer: true,
-            timeout: 30_000,
-          },
-          {
-            command: "doppler run -- pnpm dev --port 3000",
-            cwd: "../frontend",
-            url: "http://localhost:3000",
-            reuseExistingServer: true,
-            timeout: 30_000,
-          },
-        ],
-      }),
 });

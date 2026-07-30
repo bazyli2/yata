@@ -1,0 +1,88 @@
+version: "0.5"
+
+# E2E service stack — the single source of truth for how the end-to-end
+# tests' backend/frontend/database are started. Brought up (and torn down)
+# by scripts/e2e.sh, which the `devbox run e2e` / `e2e:ui` scripts call.
+#
+# Unlike the dev stack (process-compose.yaml), this runs the backend against
+# a dedicated, disposable database (app_e2e) so E2E runs never touch the
+# primary dev `app` database. The db-setup process drops/recreates and
+# migrates app_e2e fresh on every run, giving each run a clean, empty slate.
+# (app_e2e is intentionally left in place at teardown — the backend still
+# holds connections then — and simply recreated fresh at the next run's start.)
+#
+# Postgres itself uses the same devbox data dir ($PGDATA) and port as dev, so
+# a `devbox run dev` session must be stopped before running E2E (both bind
+# :8000 / :3000 / :5432). scripts/e2e.sh surfaces a clear error on conflict.
+
+processes:
+  postgres:
+    command: postgres -D "$PGDATA" -k "$PGHOST" -p "$PGPORT"
+    availability:
+      restart: on_failure
+    readiness_probe:
+      exec:
+        command: pg_isready -h localhost -p "$PGPORT" -U postgres
+      initial_delay_seconds: 1
+      period_seconds: 2
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 10
+    shutdown:
+      signal: 2
+      timeout_seconds: 10
+
+  # One-shot: (re)create a clean app_e2e database and apply migrations.
+  # DB_NAME is overridden to app_e2e for the alembic run; all other secrets
+  # (DB_USER, DB_PASSWORD, ...) come from Doppler. Any stale connections from a
+  # previously-crashed run are terminated first so the drop can't be blocked.
+  db-setup:
+    command: |
+      psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d postgres -c \
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='app_e2e' AND pid<>pg_backend_pid();" &&
+      dropdb -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" --if-exists app_e2e &&
+      createdb -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" app_e2e &&
+      doppler run -- env DB_NAME=app_e2e uv run alembic upgrade head
+    working_dir: ./backend
+    depends_on:
+      postgres:
+        condition: process_healthy
+
+  backend:
+    # Points at the isolated app_e2e database via the DB_NAME override.
+    command: doppler run -- env DB_NAME=app_e2e uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+    working_dir: ./backend
+    depends_on:
+      db-setup:
+        condition: process_completed_successfully
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: 8000
+        path: /api/health
+      initial_delay_seconds: 1
+      period_seconds: 2
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 15
+    availability:
+      restart: on_failure
+
+  frontend:
+    command: doppler run -- pnpm dev --port 3000
+    working_dir: ./frontend
+    depends_on:
+      backend:
+        condition: process_healthy
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: 3000
+        path: /
+      initial_delay_seconds: 1
+      period_seconds: 2
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 15
+    availability:
+      restart: on_failure
