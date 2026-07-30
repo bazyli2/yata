@@ -15,26 +15,25 @@ import { expect, test as setup } from "@playwright/test";
  *   - E2E_TEST_USERNAME
  *   - E2E_TEST_PASSWORD
  *
- * When the credentials aren't available (e.g. a fork PR without access to
- * secrets), the setup is skipped at the suite level so no browser is launched.
- * The dependent authenticated tests are skipped too, while the unauthenticated
- * smoke tests still run.
+ * If those are missing this setup fails loudly (rather than skipping) so a
+ * broken Doppler token or renamed secret can't silently disable the
+ * authenticated tests while CI stays green.
  */
 
 export const STORAGE_STATE = path.join(__dirname, ".auth", "session.json");
 
-const hasCredentials = !!(
-  process.env.E2E_TEST_USERNAME && process.env.E2E_TEST_PASSWORD
-);
-
-setup.skip(
-  !hasCredentials,
-  "E2E_TEST_USERNAME / E2E_TEST_PASSWORD not set — skipping authenticated tests.",
-);
-
 setup("authenticate via Auth0", async ({ page }) => {
-  const username = process.env.E2E_TEST_USERNAME!;
-  const password = process.env.E2E_TEST_PASSWORD!;
+  const username = process.env.E2E_TEST_USERNAME;
+  const password = process.env.E2E_TEST_PASSWORD;
+
+  if (!username || !password) {
+    throw new Error(
+      "Missing E2E_TEST_USERNAME / E2E_TEST_PASSWORD — required for the " +
+        "authenticated E2E tests. Run the suite with `devbox run e2e` (which " +
+        "wraps `doppler run` to inject secrets), and make sure the E2E test " +
+        "user credentials exist in the Doppler config.",
+    );
+  }
 
   // Kick off the login flow; the SDK redirects to the Auth0 Universal Login page.
   await page.goto("/auth/login");

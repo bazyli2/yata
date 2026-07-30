@@ -7,16 +7,10 @@ import { expect, test } from "@playwright/test";
  * `chromium-auth` project in playwright.config.ts), so the user is already
  * logged in when each test starts.
  *
- * They depend on the Auth0 login performed by auth.setup.ts. When the test
- * credentials aren't available the setup is skipped and no session is saved,
- * so skip these too (at the file level, before any browser launches) instead
- * of failing on a missing session.
+ * They depend on the `setup` project. If the Auth0 login there fails (e.g.
+ * missing credentials), Playwright reports these as not-run via the failed
+ * dependency — no session is silently skipped over.
  */
-
-test.skip(
-  !process.env.E2E_TEST_USERNAME || !process.env.E2E_TEST_PASSWORD,
-  "E2E_TEST_USERNAME / E2E_TEST_PASSWORD not set — skipping authenticated tests.",
-);
 
 test.describe("Items (authenticated)", () => {
   test("logged-in user can add an item and see it in the list", async ({
