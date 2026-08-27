@@ -22,7 +22,7 @@ test.describe("Items (authenticated)", () => {
     const itemName = `E2E item ${unique}`;
     const itemDescription = `Created by Playwright e2e test ${unique}`;
 
-    await page.goto("/");
+    await page.goto("/app");
 
     // Sanity check: we're authenticated (Log out link is present).
     await expect(page.getByRole("link", { name: /log out/i })).toBeVisible();
@@ -43,7 +43,7 @@ test.describe("Items (authenticated)", () => {
   });
 
   test("name is required to add an item", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/app");
 
     await expect(page.getByRole("link", { name: /log out/i })).toBeVisible();
 

@@ -50,8 +50,10 @@ setup("authenticate via Auth0", async ({ page }) => {
   // After a successful login, Auth0 redirects back to the app at baseURL.
   await page.waitForURL("http://localhost:3000/**");
 
-  // Confirm we're actually authenticated: the home page shows a "Log out"
-  // link only when a session exists.
+  // Confirm we're actually authenticated. The landing page at "/" is a
+  // static marketing page that never reads the session, so check on /app —
+  // it shows a "Log out" link only when a session exists.
+  await page.goto("/app");
   await expect(page.getByRole("link", { name: /log out/i })).toBeVisible();
 
   // Persist the authenticated state (cookies + storage) for reuse.

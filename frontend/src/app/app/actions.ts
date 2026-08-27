@@ -21,7 +21,7 @@ export async function createItem(formData: FormData) {
     return { error: "Failed to create item." };
   }
 
-  revalidatePath("/");
+  revalidatePath("/app");
   return { error: null };
 }
 
@@ -35,6 +35,6 @@ export async function deleteItem(itemId: number) {
     return { error: "Failed to delete item." };
   }
 
-  revalidatePath("/");
+  revalidatePath("/app");
   return { error: null };
 }
