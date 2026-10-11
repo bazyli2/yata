@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Home page", () => {
+test.describe("App page", () => {
   test("renders the page heading", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/app");
 
     await expect(
       page.getByRole("heading", { name: "yata starter" }),
@@ -10,7 +10,7 @@ test.describe("Home page", () => {
   });
 
   test("shows backend health section", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/app");
 
     await expect(
       page.getByRole("heading", { name: "Backend health" }),
@@ -18,7 +18,7 @@ test.describe("Home page", () => {
   });
 
   test("shows items section", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/app");
 
     await expect(
       page.getByRole("heading", { name: "Items" }),
